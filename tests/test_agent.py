@@ -2,8 +2,12 @@
 
 import os
 
-# Dummy LiveKit credentials so inference.LLM() can be constructed offline.
-for k, v in {"LIVEKIT_API_KEY": "test", "LIVEKIT_API_SECRET": "test"}.items():
+# Dummy credentials so the agent can be constructed offline.
+for k, v in {
+    "LIVEKIT_API_KEY": "test",
+    "LIVEKIT_API_SECRET": "test",
+    "ASSEMBLYAI_API_KEY": "test",
+}.items():
     os.environ.setdefault(k, v)
 
 

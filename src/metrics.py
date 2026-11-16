@@ -109,6 +109,9 @@ class TurnMetricsReporter:
         if not isinstance(item, ChatMessage):
             return
         metrics = item.metrics or {}
+        if item.text_content:
+            who = "USER " if item.role == "user" else "AGENT"
+            metrics_logger.info("%s · %s", who, item.text_content)
         if item.role == "user":
             self._pending_user_metrics = metrics
         elif item.role == "assistant":

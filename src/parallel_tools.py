@@ -112,7 +112,9 @@ class ParallelTools:
                 site: operators.
         """
         logger.info("web_search objective=%r queries=%r", objective, search_queries)
-        async with context.with_filler("One sec, let me look that up.", delay=1.0):
+        async with context.with_filler(
+            _filler(context, ["One sec, let me look that up."]), delay=1.0
+        ):
             try:
                 return await self.search(objective, search_queries)
             except Exception as e:
@@ -130,7 +132,9 @@ class ParallelTools:
             objective: What you need from the page, as one sentence.
         """
         logger.info("read_webpage url=%r objective=%r", url, objective)
-        async with context.with_filler("Let me pull up that page.", delay=1.0):
+        async with context.with_filler(
+            _filler(context, ["Let me pull up that page."]), delay=1.0
+        ):
             try:
                 return await self.extract(url, objective)
             except Exception as e:
@@ -149,7 +153,7 @@ class ParallelTools:
         """
         logger.info("deep_research question=%r", question)
         async with context.with_filler(
-            _research_filler, delay=0.5, interval=6.0, max_steps=3
+            _filler(context, _RESEARCH_FILLERS), delay=0.5, interval=6.0
         ):
             try:
                 return await self.research(question)
@@ -203,8 +207,22 @@ _RESEARCH_FILLERS = [
 ]
 
 
-def _research_filler(step: int) -> str | None:
-    return _RESEARCH_FILLERS[step] if step < len(_RESEARCH_FILLERS) else None
+def _filler(context: RunContext, lines: list[str]):
+    """Filler source for ``RunContext.with_filler`` that speaks ``lines`` in order.
+
+    Fillers are spoken but kept out of the chat history. Otherwise the history
+    would end on an assistant message right after the tool call, which some
+    models (e.g. Claude via the LLM Gateway) reject as "assistant prefill".
+    """
+
+    def source(step: int):
+        if step >= len(lines):
+            return None
+        return context.session.say(
+            lines[step], add_to_chat_ctx=False, allow_interruptions=True
+        )
+
+    return source
 
 
 def _format_results(results) -> str:
