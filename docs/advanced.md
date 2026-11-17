@@ -5,7 +5,7 @@
 - **Saw a console deprecation notice?** The locked LiveKit version supports this command. Wait for the greeting before speaking or typing.
 - **No transcript or no sound?** Add `--text` to the console command. To choose a microphone or speaker, run `uv run python src/agent.py console --list-devices`, then pass `--input-device` or `--output-device` with its name. Check your terminal's microphone permission.
 - **Gateway access error after the greeting?** Check your AssemblyAI key. If the error names a restricted gateway model, set `LLM_MODEL` in `.env.local` to an account-enabled option that supports streaming and tools. [AssemblyAI gateway options](https://www.assemblyai.com/docs/llm-gateway/available-models)
-- **Web tool failed?** Check that the machine can reach `https://mcp.parallel.ai/mcp`. If anonymous calls hit the rate limit, wait and retry, or set `PARALLEL_API_KEY` and restart for authenticated usage.
+- **Web tool failed?** Check that the machine can reach `https://mcp.parallel.ai/mcp`. Anonymous limits can apply during discovery or mid-conversation, especially during repeated setup tests. If you hit the limit, wait and restart the agent, or set `PARALLEL_API_KEY` and restart for authenticated usage.
 
 ## Standalone API example
 
