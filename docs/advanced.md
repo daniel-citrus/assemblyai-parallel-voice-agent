@@ -49,7 +49,9 @@ lk cloud auth
 lk agent create
 ```
 
-This builds the [`Dockerfile`](../Dockerfile). Add `ASSEMBLYAI_API_KEY` as a secret (`lk agent update-secrets`). The deployed worker uses the same AssemblyAI and Parallel MCP connection as the terminal demo.
+This builds the [`Dockerfile`](../Dockerfile). Add `ASSEMBLYAI_API_KEY` as a secret (`lk agent update-secrets`). By default the deployed worker calls AssemblyAI directly, like the terminal demo.
+
+To use the original LiveKit Inference setup, set `AGENT_STACK=cloud` in the worker environment. The Docker image includes the cloud extras. When running a worker on your own machine against a LiveKit Cloud project, use `uv run --extra cloud python src/agent.py dev` with the project URL and credentials. This mode routes transcription and the LLM through LiveKit, enables adaptive interruption and ai-coustics noise cancellation, and still uses AssemblyAI for speech playback. Both modes use the same Parallel MCP tools.
 
 ## Tests
 
