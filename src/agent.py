@@ -40,6 +40,7 @@ from livekit.agents import (
     mcp,
     room_io,
 )
+from livekit.plugins import assemblyai, openai, silero
 
 from metrics import TurnMetricsReporter
 from parallel_tools import ParallelTools
@@ -50,6 +51,9 @@ logger = logging.getLogger("agent")
 logger.setLevel(logging.INFO)
 
 STACK = os.environ.get("AGENT_STACK", "local").lower()
+
+if STACK == "cloud":
+    from livekit.plugins import ai_coustics
 
 # Choose direct API calls or the hosted MCP equivalents.
 TOOL_SOURCE = os.environ.get("PARALLEL_TOOL_SOURCE", "api").lower()
@@ -113,8 +117,6 @@ def build_llm() -> llm.LLM:
 
         return inference.LLM(model=LLM_MODEL)
 
-    from livekit.plugins import openai
-
     # The LLM Gateway speaks the OpenAI Chat Completions API, so LiveKit's OpenAI
     # plugin works as-is with the AssemblyAI key.
     return openai.LLM(
@@ -175,8 +177,6 @@ def session_options() -> dict[str, Any]:
             ),
         )
 
-    from livekit.plugins import assemblyai, silero
-
     return dict(
         # AssemblyAI streaming STT decides when the caller has finished their
         # turn (semantic + acoustic end-of-turn), so no separate turn model.
@@ -196,8 +196,6 @@ def session_options() -> dict[str, Any]:
 def room_options() -> room_io.RoomOptions | None:
     if STACK != "cloud":
         return None
-    from livekit.plugins import ai_coustics
-
     # ai-coustics noise cancellation authenticates through LiveKit Cloud.
     return room_io.RoomOptions(
         audio_input=room_io.AudioInputOptions(
