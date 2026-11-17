@@ -20,6 +20,12 @@ uv run python src/agent.py console --log-level info
 
 Allow microphone access and wait for the greeting. To type instead, add `--text` to the command. Press Ctrl+C to quit.
 
+### Hit the free-tier rate limit?
+
+1. Press Ctrl+C to stop the agent. Get a key from the [Parallel dashboard](https://platform.parallel.ai).
+2. Open the existing `.env.local` in the repo folder. Find `PARALLEL_API_KEY=`, paste your key after the equals sign, and save the file.
+3. Run the same console command again and repeat your question. On startup, the agent picks up your key and uses your Parallel account for Search, Fetch, and Decisions. No code changes are needed.
+
 ## Try the three tools
 
 1. **Search:** “What changed in the latest stable Python release?” The agent can answer directly from search excerpts.
