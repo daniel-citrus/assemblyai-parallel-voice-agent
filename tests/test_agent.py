@@ -7,9 +7,3 @@ def test_agent_builds(monkeypatch):
 
     a = agent.SearchAssistant(tools=[])
     assert "web_search" in a.instructions
-
-
-def test_mcp_server_config():
-    import agent
-
-    assert agent.parallel_mcp_server() is not None

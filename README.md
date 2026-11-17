@@ -54,4 +54,6 @@ uv run python scripts/try_parallel.py "Find the latest stable Python release not
 uv run python scripts/try_parallel.py --decision "Python 3.13, python.org" "Does Python 3.13 offer a free-threaded build?"
 ```
 
-Run `uv run pytest` for the tests. Tests with configured keys make real API calls. For browser rooms, hosted MCP, deployment, and latency logging, see [other ways to run the agent](docs/advanced.md).
+Run `uv run pytest` for the tests. Tests with configured keys make real API calls. For browser rooms and deployment, see [other ways to run the agent](docs/advanced.md).
+
+Speech playback uses the [AssemblyAI streaming TTS plugin](https://github.com/tom-aai/assemblyai-livekit-tts).

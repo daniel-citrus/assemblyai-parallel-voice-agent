@@ -10,7 +10,4 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --locked --no-dev
 
 COPY src ./src
-# Pre-download the turn-detector model so cold starts stay fast.
-RUN uv run --no-dev python src/agent.py download-files
-
 CMD ["uv", "run", "--no-dev", "python", "src/agent.py", "start"]
