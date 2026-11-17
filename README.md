@@ -44,6 +44,7 @@ To reuse Search or Decisions in a CLI, bot, or web backend, copy [src/parallel_a
 
 ## If you get stuck
 
+- **Saw a console deprecation notice?** The locked LiveKit version supports this command. Wait for the greeting before speaking or typing.
 - **No transcript or no sound?** Try text mode above. To choose a microphone or speaker, run `uv run python src/agent.py console --list-devices`, then pass `--input-device` or `--output-device` with its name. Check your terminal's microphone permission.
 - **Gateway access error after the greeting?** Check your AssemblyAI key. If the error names a restricted gateway model, set `LLM_MODEL` in `.env.local` to an account-enabled option that supports streaming and tools. [AssemblyAI gateway options](https://www.assemblyai.com/docs/llm-gateway/available-models)
 - **Search or Decisions failed?** Check your Parallel key and available credits. Run either example below to see the API response independently of voice.

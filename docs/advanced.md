@@ -57,7 +57,7 @@ lk cloud auth
 lk agent create
 ```
 
-This builds the [`Dockerfile`](Dockerfile). Add `ASSEMBLYAI_API_KEY` and
+This builds the [`Dockerfile`](../Dockerfile). Add `ASSEMBLYAI_API_KEY` and
 `PARALLEL_API_KEY` as secrets (`lk agent update-secrets`). Set `AGENT_STACK=cloud` to
 use LiveKit Inference and ai-coustics, or keep `local` to call AssemblyAI directly.
 
