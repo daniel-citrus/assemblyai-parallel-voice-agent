@@ -4,8 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from parallel_api import ParallelConfig, _format_results
-from parallel_tools import ParallelTools
+from parallel_api import ParallelAPI, ParallelConfig, _format_results
 
 
 def test_format_results():
@@ -25,16 +24,9 @@ def test_format_results():
     assert "[2] Untitled (https://b.com)" in out
 
 
-def test_tools_register():
-    tools = ParallelTools(ParallelConfig(api_key="test"), session_id="room")
-    names = [t.id for t in tools.as_tools()]
-    assert names == ["web_search", "web_decisions"]
-    assert tools.session_id == "voice_room"
-
-
 def test_missing_key_raises():
     with pytest.raises(RuntimeError):
-        ParallelTools(ParallelConfig(api_key=""))
+        ParallelAPI(ParallelConfig(api_key=""))
 
 
 live = pytest.mark.skipif(
@@ -44,7 +36,7 @@ live = pytest.mark.skipif(
 
 @live
 async def test_live_search():
-    tools = ParallelTools()
+    tools = ParallelAPI()
     try:
         out = await tools.search(
             "Find the official website of the LiveKit Agents framework.",
@@ -56,7 +48,7 @@ async def test_live_search():
 
 
 async def test_decision_refusal(monkeypatch):
-    tools = ParallelTools(ParallelConfig(api_key="test"))
+    tools = ParallelAPI(ParallelConfig(api_key="test"))
     post = AsyncMock(return_value={"answers": {"claim": {"type": "refusal"}}})
     monkeypatch.setattr(tools._client, "post", post)
     try:

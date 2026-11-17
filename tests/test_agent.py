@@ -5,5 +5,5 @@ def test_agent_builds(monkeypatch):
     monkeypatch.setenv("ASSEMBLYAI_API_KEY", "test")
     import agent
 
-    a = agent.SearchAssistant(tools=[])
+    a = agent.SearchAssistant()
     assert "web_search" in a.instructions
