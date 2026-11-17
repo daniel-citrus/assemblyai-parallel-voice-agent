@@ -24,7 +24,11 @@ async def test_voice_tools_in_one_conversation():
             "and tell me how that page checks whether the GIL is enabled.",
             "web_fetch",
         ),
-        ("Does NumPy 2.1 officially support Python 3.13?", "web_decisions"),
+        (
+            "How likely is it that NumPy 2.1 officially supports Python 3.13? "
+            "Give a probability.",
+            "web_decisions",
+        ),
     ]
     async with AgentSession() as session:
         await session.start(agent.SearchAssistant())

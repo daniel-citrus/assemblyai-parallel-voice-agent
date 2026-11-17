@@ -1,6 +1,6 @@
 # AssemblyAI + Parallel voice starter
 
-Talk to a voice agent in your terminal. AssemblyAI listens and speaks. The agent uses Parallel **Search** to find sources and **Decisions** to check a yes/no claim. You can run it locally with two API keys and no LiveKit account.
+Talk to a voice agent in your terminal. AssemblyAI handles speech and replies. Parallel’s hosted MCP server gives the agent three tools: Search finds evidence, Fetch reads a particular public page, and Decisions estimates a probability or chooses among supplied options. The first conversation only needs an AssemblyAI key. [Parallel MCP](https://docs.parallel.ai/integrations/mcp/quickstart)
 
 ## Run it
 
@@ -12,7 +12,7 @@ cd assemblyai-parallel-voice-agent
 uv sync --frozen
 ```
 
-Copy `.env.example` to `.env.local`. Fill in `ASSEMBLYAI_API_KEY` and `PARALLEL_API_KEY` with keys from [AssemblyAI](https://www.assemblyai.com/dashboard) and [Parallel](https://platform.parallel.ai).
+Copy `.env.example` to `.env.local`. Set `ASSEMBLYAI_API_KEY` with your [AssemblyAI key](https://www.assemblyai.com/dashboard). Leave `PARALLEL_API_KEY` empty for free, rate-limited MCP access.
 
 ```sh
 uv run python src/agent.py console --log-level info
@@ -20,15 +20,18 @@ uv run python src/agent.py console --log-level info
 
 Allow microphone access and wait for the greeting. To type instead, add `--text` to the command. Press Ctrl+C to quit.
 
-## Try two questions
+## Try the three tools
 
-1. **“What changed in the latest stable Python release?”** Look for `Search` and a source URL in the terminal.
-2. **“Does that version offer a free-threaded build?”** In the same conversation, the agent can use `Decisions` to check the release it just named. Look for a probability and a source, or a message that it couldn't verify the claim.
+1. **Search:** “What changed in the latest stable Python release?” The agent can answer directly from search excerpts.
+2. **Fetch:** “Read the release notes you just cited. What do they say about upgrading?” The follow-up identifies a specific page. You can also paste a public URL in text mode.
+3. **Decisions:** “How likely is it that Python 3.13 offers a free-threaded build? Give me a probability.” Decisions gathers its own evidence and estimates how likely the claim is to be true.
+
+Watch the tool names in the terminal. The agent chooses when to call each one. Fetch is for a specific page or a missing detail, so a search that already answers the question needs only one call.
 
 ## Make it yours
 
-Try a library compatibility assistant. Set `AGENT_GREETING="Which library are you working with?"` in `.env.local`. Add “Prefer official release notes and package metadata” to `INSTRUCTIONS` in [src/agent.py](src/agent.py). Restart and try the same two questions about a library you use.
+Try a library compatibility assistant. Set `AGENT_GREETING="Which library are you working with?"` in `.env.local`. Add “Prefer official release notes and package metadata” to `INSTRUCTIONS` in [src/agent.py](src/agent.py). Restart and try similar questions about a library you use.
 
-Building a different app? [parallel_api.py](src/parallel_api.py) has the two API calls and only needs `parallel-web`. [try_parallel.py](scripts/try_parallel.py) shows how to use them.
+**Standalone API example.** To call Parallel directly from your own app, set `PARALLEL_API_KEY` with a [Parallel key](https://platform.parallel.ai). [parallel_api.py](src/parallel_api.py) has the two API calls and only needs `parallel-web`. [try_parallel.py](scripts/try_parallel.py) shows how to use them.
 
 [Setup help](docs/advanced.md#troubleshooting) · [Browser and deployment options](docs/advanced.md#browser-or-room)

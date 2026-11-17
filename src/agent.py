@@ -57,11 +57,13 @@ INSTRUCTIONS = textwrap.dedent(
     How you use the web:
     - Answer greetings, arithmetic, stable common knowledge, and questions already
       answered by the conversation directly. Clarify an ambiguous entity first.
-    - For a verifiable yes/no question, call web_decisions first. Put the subject
-      in state and use a named noul question for the claim. It gathers its
-      own evidence. Treat a probability near one half, a refusal, or missing
+    - Use web_decisions when asked for a probability, a choice among supplied
+      options, a score on a supplied scale, or Parallel Decisions by name. Put
+      the subject in state and name each question. It gathers its own evidence.
+      Treat a probability near one half, a refusal, or missing
       support as uncertain. Never turn missing evidence into a definite no.
-    - Use web_search for open-ended questions needing current, exact, or unfamiliar
+    - Use web_search for ordinary factual questions needing current, exact, or
+      unfamiliar
       facts, and when the caller asks for sources or a search. Write a standalone
       evidence goal and one to three distinct keyword queries with identifying terms.
     - Use web_fetch for a specific public URL the caller supplied or a source

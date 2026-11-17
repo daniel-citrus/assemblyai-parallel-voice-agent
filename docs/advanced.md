@@ -5,7 +5,11 @@
 - **Saw a console deprecation notice?** The locked LiveKit version supports this command. Wait for the greeting before speaking or typing.
 - **No transcript or no sound?** Add `--text` to the console command. To choose a microphone or speaker, run `uv run python src/agent.py console --list-devices`, then pass `--input-device` or `--output-device` with its name. Check your terminal's microphone permission.
 - **Gateway access error after the greeting?** Check your AssemblyAI key. If the error names a restricted gateway model, set `LLM_MODEL` in `.env.local` to an account-enabled option that supports streaming and tools. [AssemblyAI gateway options](https://www.assemblyai.com/docs/llm-gateway/available-models)
-- **Search or Decisions failed?** Check your Parallel key and available credits. Run either example below to see the API response independently of voice.
+- **Web tool failed?** Check that the machine can reach `https://mcp.parallel.ai/mcp`. If anonymous calls hit the rate limit, wait and retry, or set `PARALLEL_API_KEY` and restart for authenticated usage.
+
+## Standalone API example
+
+Set `PARALLEL_API_KEY` in `.env.local` to try direct Search and Decisions calls separately from the voice agent.
 
 ```sh
 uv run python scripts/try_parallel.py "Find the latest stable Python release notes." --query "Python stable release notes"
@@ -45,8 +49,7 @@ lk cloud auth
 lk agent create
 ```
 
-This builds the [`Dockerfile`](../Dockerfile). Add `ASSEMBLYAI_API_KEY` and
-`PARALLEL_API_KEY` as secrets (`lk agent update-secrets`). The deployed worker uses the same AssemblyAI and Parallel APIs as the terminal demo.
+This builds the [`Dockerfile`](../Dockerfile). Add `ASSEMBLYAI_API_KEY` as a secret (`lk agent update-secrets`). The deployed worker uses the same AssemblyAI and Parallel MCP connection as the terminal demo.
 
 ## Tests
 
