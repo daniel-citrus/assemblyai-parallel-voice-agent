@@ -1,4 +1,16 @@
-# Other ways to run the agent
+# Setup reference
+
+## Troubleshooting
+
+- **Saw a console deprecation notice?** The locked LiveKit version supports this command. Wait for the greeting before speaking or typing.
+- **No transcript or no sound?** Add `--text` to the console command. To choose a microphone or speaker, run `uv run python src/agent.py console --list-devices`, then pass `--input-device` or `--output-device` with its name. Check your terminal's microphone permission.
+- **Gateway access error after the greeting?** Check your AssemblyAI key. If the error names a restricted gateway model, set `LLM_MODEL` in `.env.local` to an account-enabled option that supports streaming and tools. [AssemblyAI gateway options](https://www.assemblyai.com/docs/llm-gateway/available-models)
+- **Search or Decisions failed?** Check your Parallel key and available credits. Run either example below to see the API response independently of voice.
+
+```sh
+uv run python scripts/try_parallel.py "Find the latest stable Python release notes." --query "Python stable release notes"
+uv run python scripts/try_parallel.py --decision "Python 3.13, python.org" "Does Python 3.13 offer a free-threaded build?"
+```
 
 ## Browser or room
 
@@ -35,3 +47,9 @@ lk agent create
 
 This builds the [`Dockerfile`](../Dockerfile). Add `ASSEMBLYAI_API_KEY` and
 `PARALLEL_API_KEY` as secrets (`lk agent update-secrets`). The deployed worker uses the same AssemblyAI and Parallel APIs as the terminal demo.
+
+## Tests
+
+Run `uv run pytest`. Tests with configured keys make live API calls.
+
+Speech playback uses the [AssemblyAI streaming TTS plugin](https://github.com/tom-aai/assemblyai-livekit-tts).
