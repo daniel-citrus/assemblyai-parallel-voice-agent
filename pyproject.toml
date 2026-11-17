@@ -5,12 +5,14 @@ description = "Starter for LiveKit voice agents that search the live web with Pa
 readme = "README.md"
 requires-python = ">=3.10, <3.14"
 dependencies = [
-    "livekit-agents[assemblyai,mcp,openai,silero,turn-detector]~=1.8",
-    "livekit-plugins-ai-coustics",
+    "livekit-agents[assemblyai,mcp,openai,silero]~=1.8",
     "livekit-plugins-assemblyai-tts",
     "parallel-web>=1.3",
     "python-dotenv",
 ]
+
+[project.optional-dependencies]
+cloud = ["livekit-agents[turn-detector]~=1.8", "livekit-plugins-ai-coustics"]
 
 [dependency-groups]
 dev = ["pytest", "pytest-asyncio", "ruff"]

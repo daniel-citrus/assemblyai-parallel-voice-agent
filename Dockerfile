@@ -7,10 +7,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends git ca-certific
 
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
-RUN uv sync --locked --no-dev
+RUN uv sync --locked --no-dev --extra cloud
 
 COPY src ./src
-# Pre-download the turn-detector model so cold starts stay fast.
-RUN uv run --no-dev python src/agent.py download-files
+RUN AGENT_STACK=cloud uv run --frozen --no-dev --extra cloud python src/agent.py download-files
 
-CMD ["uv", "run", "--no-dev", "python", "src/agent.py", "start"]
+CMD ["uv", "run", "--no-dev", "--extra", "cloud", "python", "src/agent.py", "start"]

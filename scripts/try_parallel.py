@@ -1,9 +1,3 @@
-"""Exercise the Parallel tools without LiveKit, to check your key and latency.
-
-uv run python scripts/try_parallel.py "who won the last formula one race"
-uv run python scripts/try_parallel.py --research "best budget ANC headphones"
-"""
-
 import argparse
 import asyncio
 import sys
@@ -13,7 +7,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from parallel_tools import ParallelTools  # noqa: E402
+from parallel_api import ParallelAPI  # noqa: E402
 
 load_dotenv(".env.local")
 
@@ -21,20 +15,29 @@ load_dotenv(".env.local")
 async def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("question")
-    ap.add_argument("--research", action="store_true", help="use deep_research")
+    group = ap.add_mutually_exclusive_group()
+    group.add_argument(
+        "--query", action="append", help="short search keywords (repeatable)"
+    )
+    group.add_argument("--decision", metavar="SUBJECT", help="check a yes/no question")
     args = ap.parse_args()
 
-    tools = ParallelTools()
+    tools = ParallelAPI()
     t0 = time.perf_counter()
     try:
-        if args.research:
-            out = await tools.research(args.question)
+        if args.decision:
+            out = await tools.decide(args.decision, args.question)
+        elif args.query:
+            out = await tools.search(args.question, args.query)
         else:
-            out = await tools.search(args.question, [args.question[:80]])
+            out = await tools.search(
+                f"Find authoritative sources on {args.question}.", [args.question]
+            )
     finally:
         await tools.aclose()
     print(out)
-    print(f"\n--- {time.perf_counter() - t0:.2f}s ({tools.config.search_mode} mode)")
+    mode = "Decisions" if args.decision else tools.config.search_mode
+    print(f"\n--- {time.perf_counter() - t0:.2f}s ({mode})")
 
 
 if __name__ == "__main__":

@@ -1,60 +1,53 @@
-"""End-to-end text tests: real LLM (AssemblyAI LLM Gateway) + real Parallel search.
-
-No audio and no LiveKit server: AgentSession runs in text mode. Skipped unless
-ASSEMBLYAI_API_KEY and PARALLEL_API_KEY are both set.
-"""
+"""Live text turns through AssemblyAI and the hosted Parallel MCP server."""
 
 import os
-from datetime import date
 
 import pytest
+from dotenv import load_dotenv
 from livekit.agents import AgentSession
 
+load_dotenv(".env.local")
+
 pytestmark = pytest.mark.skipif(
-    not (os.environ.get("ASSEMBLYAI_API_KEY") and os.environ.get("PARALLEL_API_KEY")),
-    reason="needs ASSEMBLYAI_API_KEY and PARALLEL_API_KEY",
+    not os.environ.get("ASSEMBLYAI_API_KEY"),
+    reason="needs ASSEMBLYAI_API_KEY",
 )
 
 
-async def _run(user_input: str):
-    os.environ.setdefault("AGENT_STACK", "local")
-    from livekit.plugins import openai
-
+async def test_voice_tools_in_one_conversation():
     import agent
-    from parallel_tools import ParallelTools
 
-    tools = ParallelTools(session_id="pytest")
-    # The judge sends `temperature`, which some gateway models (e.g. Claude Haiku
-    # 5.5) reject, so it uses its own model.
-    judge = openai.LLM(
-        model=os.environ.get("JUDGE_MODEL", "claude-sonnet-4-6"),
-        base_url=agent.LLM_GATEWAY_URL,
-        api_key=os.environ["ASSEMBLYAI_API_KEY"],
-    )
-    try:
-        async with AgentSession(llm=agent.build_llm()) as session:
-            await session.start(agent.SearchAssistant(tools=tools.as_tools()))
-            result = await session.run(user_input=user_input)
-            return result, judge
-    finally:
-        await tools.aclose()
-
-
-async def test_searches_for_current_info():
-    result, judge = await _run("What's the latest version of the LiveKit Agents SDK?")
-    result.expect.contains_function_call(name="web_search")
-    await result.expect.contains_message(role="assistant").judge(
-        judge,
-        intent=f"Today is {date.today():%B %d, %Y}. Names a specific LiveKit "
-        "Agents version number taken from the search results, in plain spoken "
-        "text with no markdown or URLs.",
-    )
-
-
-async def test_no_search_for_small_talk():
-    result, judge = await _run("Hi there, how are you?")
-    with pytest.raises(AssertionError):
-        result.expect.contains_function_call(name="web_search")
-    await result.expect.contains_message(role="assistant").judge(
-        judge, intent="A short, friendly reply."
-    )
+    turns = [
+        ("What's new in the latest stable Python release?", "web_search"),
+        (
+            "Read https://docs.python.org/3/howto/free-threading-python.html "
+            "and tell me how that page checks whether the GIL is enabled.",
+            "web_fetch",
+        ),
+        (
+            "How likely is it that NumPy 2.1 officially supports Python 3.13? "
+            "Give a probability.",
+            "web_decisions",
+        ),
+    ]
+    async with AgentSession() as session:
+        await session.start(agent.SearchAssistant())
+        greeting = await session.run(user_input="Hi there, how are you?")
+        assert all(event.type != "function_call" for event in greeting.events)
+        for question, tool in turns:
+            result = await session.run(user_input=question)
+            result.expect.contains_function_call(name=tool)
+            outputs = [
+                event.item
+                for event in result.events
+                if event.type == "function_call_output" and event.item.name == tool
+            ]
+            assert any(
+                not item.is_error and "https://" in (item.output or "")
+                for item in outputs
+            ), f"{tool} returned no sourced evidence"
+            assert (
+                result.expect.contains_message(role="assistant")
+                .event()
+                .item.text_content
+            )
