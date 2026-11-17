@@ -16,7 +16,6 @@ from livekit.agents import (
     AgentSession,
     ConversationItemAddedEvent,
     JobContext,
-    STTContextOptions,
     TurnHandlingOptions,
     cli,
     inference,
@@ -42,7 +41,9 @@ LLM_MODEL = os.environ.get(
     "LLM_MODEL",
     defaults["CLOUD_LLM_MODEL" if CLOUD_INFERENCE else "LLM_MODEL"],
 )
-STT_MODEL = os.environ.get("ASSEMBLYAI_STT_MODEL", "universal-3-6-pro")
+# AssemblyAI's newest streaming model, built for voice agents. Both stacks call it
+# directly: LiveKit Inference only offers up to Universal-3.6 Pro.
+STT_MODEL = os.environ.get("ASSEMBLYAI_STT_MODEL", "assemblyai-stt-3-7-realtime-agent")
 TTS_VOICE = os.environ.get("ASSEMBLYAI_TTS_VOICE", "aai-violet")
 LLM_GATEWAY_URL = "https://llm-gateway.assemblyai.com/v1"
 
@@ -142,13 +143,11 @@ server = AgentServer()
 
 @server.rtc_session(agent_name="parallel-search-agent")
 async def entrypoint(ctx: JobContext) -> None:
+    stt = assemblyai.STT(model=STT_MODEL, keyterms_prompt=KEYTERMS)
     tts = assemblyai_tts.TTS(voice_id=TTS_VOICE, language="english")
     if CLOUD_INFERENCE:
         session = AgentSession(
-            stt=inference.STT(model="assemblyai/universal-3-5-pro", language="en"),
-            stt_context_options=STTContextOptions(
-                keyterms=KEYTERMS, keyterm_detection={"enabled": True}
-            ),
+            stt=stt,
             tts=tts,
             turn_handling=TurnHandlingOptions(
                 turn_detection=inference.TurnDetector(),
@@ -159,7 +158,7 @@ async def entrypoint(ctx: JobContext) -> None:
         )
     else:
         session = AgentSession(
-            stt=assemblyai.STT(model=STT_MODEL, keyterms_prompt=KEYTERMS),
+            stt=stt,
             tts=tts,
             vad=silero.VAD.load(),
             turn_handling=TurnHandlingOptions(
