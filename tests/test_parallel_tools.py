@@ -1,5 +1,6 @@
 import os
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -26,7 +27,7 @@ def test_format_results():
 def test_tools_register():
     tools = ParallelTools(ParallelConfig(api_key="test"), session_id="room")
     names = [t.id for t in tools.as_tools()]
-    assert names == ["web_search", "read_webpage", "deep_research"]
+    assert names == ["web_search", "web_decisions"]
     assert tools.session_id == "voice_room"
 
 
@@ -51,3 +52,15 @@ async def test_live_search():
     finally:
         await tools.aclose()
     assert "livekit" in out.lower()
+
+
+async def test_decision_refusal(monkeypatch):
+    tools = ParallelTools(ParallelConfig(api_key="test"))
+    post = AsyncMock(return_value={"answers": {"claim": {"type": "refusal"}}})
+    monkeypatch.setattr(tools._client, "post", post)
+    try:
+        assert "could not be verified" in await tools.decide("Python", "Is it free?")
+    finally:
+        await tools.aclose()
+    assert post.await_args.args == ("/v1/decisions",)
+    assert post.await_args.kwargs["body"]["questions"]["claim"]["type"] == "noul"

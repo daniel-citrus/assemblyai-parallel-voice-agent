@@ -8,20 +8,14 @@ LiveKit Cloud account needed, using two API keys.
 ```
 caller ─► AssemblyAI STT ─► LLM (AssemblyAI LLM Gateway) ─► AssemblyAI TTS ─► caller
           Universal-3.6 Pro        │
-          + end-of-turn            ├─ web_search    → Parallel Search  (~0.7 s)
-                                   ├─ read_webpage  → Parallel Extract
-                                   └─ deep_research → Parallel Responses (~5-10 s)
+          + end-of-turn            ├─ web_search    → Parallel Search
+                                   └─ web_decisions → Parallel Decisions
 ```
 
-A real local run (from the agent's logs):
+Try these two turns in the same conversation:
 
-```
-USER  · Who won the most recent Formula 1 race?
-        web_search objective='Find the winner of the most recent Formula 1 race in November 2026.'
-AGENT · Lando Norris won the most recent Formula 1 race, the Brazil Grand Prix on November eighth...
-USER  · And who came second?
-AGENT · Max Verstappen came second, finishing fourteen point six seconds behind Lando Norris.
-```
+1. “What changed in the latest stable Python release?” The agent searches for release notes.
+2. “Does that release support free-threaded builds?” The agent uses the release from the first turn and checks the claim with Decisions.
 
 ## What's in here
 
@@ -30,7 +24,7 @@ AGENT · Max Verstappen came second, finishing fourteen point six seconds behind
 | [`src/agent.py`](src/agent.py) | The agent: session, voice-tuned prompt, local vs. cloud stack, tool wiring. |
 | [`src/parallel_tools.py`](src/parallel_tools.py) | Parallel tools for LiveKit, tuned for voice latency. |
 | [`src/metrics.py`](src/metrics.py) | Logs each turn's text plus a latency box (EOU, LLM TTFT, TTS TTFB, end-to-end). |
-| [`scripts/try_parallel.py`](scripts/try_parallel.py) | Run a search or research call without LiveKit to check your key and latency. |
+| [`scripts/try_parallel.py`](scripts/try_parallel.py) | Run a search or yes/no decision without LiveKit to check your key and latency. |
 | [`tests/`](tests) | Offline unit tests, plus live end-to-end conversation tests when keys are set. |
 | [`Dockerfile`](Dockerfile) | Image for deploying to LiveKit Cloud. |
 
@@ -51,7 +45,8 @@ cp .env.example .env.local   # add ASSEMBLYAI_API_KEY and PARALLEL_API_KEY
 Check that Parallel works:
 
 ```bash
-uv run python scripts/try_parallel.py "latest LiveKit Agents release"
+uv run python scripts/try_parallel.py "Find the latest stable Python release and its release notes." --query "Python stable release notes"
+uv run python scripts/try_parallel.py --decision "Python 3.13, python.org" "Does Python 3.13 offer a free-threaded build?"
 ```
 
 **Talk to it in your terminal** (uses your mic and speakers, no server needed):
@@ -88,27 +83,18 @@ caller: `lk room join --identity caller --publish question.ogg test`.
 
 ## The Parallel tools
 
-The LLM picks the cheapest tool that can answer:
+Use **Search** when the caller needs facts, sources or an explanation grounded in the web.
+The agent sends a standalone evidence goal and one to three short keyword queries.
+Turbo mode keeps interactive lookups fast. The default budget is 4,000 excerpt characters across up to five results.
+Results include titles, links and excerpts so the agent can check what each source actually supports. [Search best practices](https://docs.parallel.ai/search/best-practices)
 
-| Tool | Parallel API | Typical latency | Use for |
-| --- | --- | --- | --- |
-| `web_search` | [Search](https://docs.parallel.ai/search/search-quickstart) (`fast` mode) | ~0.7 s | Most questions: news, facts, prices, people, schedules |
-| `read_webpage` | [Extract](https://docs.parallel.ai/extract/extract-quickstart) | ~1–3 s | A URL the caller gives, or a result that needs more detail |
-| `deep_research` | [Responses](https://docs.parallel.ai/responses-api/responses-quickstart) (`low` effort) | ~5–10 s | Comparisons and multi-step questions; returns a synthesized answer with sources |
+Use **Decisions** when the caller wants to verify one public yes/no claim.
+The direct tool sends the subject and one named predicate to `/v1/decisions`.
+It returns the estimated probability that the claim is true along with sources, or reports that the API declined to decide. The agent can call it directly on the first turn.
+The CLI prints the probability and citations for inspection. [Decisions quickstart](https://docs.parallel.ai/decisions/decisions-quickstart)
 
-Voice-specific choices:
-
-- **Small results.** `max_chars_total` defaults to 4,000 characters and 5 results. Every
-  token the LLM reads delays its first word.
-- **Filler only when needed.** "One sec, let me look that up." plays only if a call runs
-  long enough to leave a noticeable silence (`RunContext.with_filler`). Fillers stay out
-  of the chat history, so the LLM never sees its own filler as a reply.
-- **Good queries.** Tool descriptions follow Parallel's
-  [best practices](https://docs.parallel.ai/search/best-practices): a standalone
-  `objective` plus 1–3 short keyword queries.
-- **Session grouping.** All calls in one LiveKit room share a Parallel `session_id`.
-- **Today's date** is in the system prompt, so "latest" and "today" resolve correctly.
-- **A fixed greeting** starts speaking immediately, without an LLM round trip.
+Greetings, arithmetic and follow-ups already answered by the conversation can skip both tools.
+For slower calls, LiveKit plays a short spoken filler outside the conversation history.
 
 ### Direct API or Parallel MCP
 
@@ -117,7 +103,7 @@ Set `PARALLEL_TOOL_SOURCE`:
 - `api` (default): the tools in `src/parallel_tools.py`. Lowest latency; you control
   modes, result size, fillers and prompts.
 - `mcp`: the hosted [Parallel MCP server](https://docs.parallel.ai/integrations/mcp/quickstart)
-  (`web_search`, `web_fetch`). No tool code to maintain. It works without a key at lower
+  (`web_search`, `web_decisions`). No tool code to maintain. It works without a key at lower
   rate limits; with `PARALLEL_API_KEY` set it bills your account.
 
 ## Local vs. LiveKit Cloud stack
@@ -147,7 +133,7 @@ on the LLM Gateway in our tests:
 | `claude-haiku-5-5` | ~1.1–1.4 s |
 
 Any [gateway model](https://www.assemblyai.com/docs/llm-gateway/available-models) that
-lists `tools` and `stream` works; set `LLM_MODEL`.
+lists `tools` and `stream` and is enabled for your account can be selected with `LLM_MODEL` in `.env.local`. If the gateway reports that your account lacks access, select an enabled option before the demo. For live tests, `JUDGE_MODEL` must also be enabled and accept a temperature setting.
 
 ## Configuration
 
@@ -161,10 +147,9 @@ All optional; see [`.env.example`](.env.example).
 | `ASSEMBLYAI_STT_MODEL` | `universal-3-6-pro` | Local stack only |
 | `ASSEMBLYAI_TTS_VOICE` | `aai-violet` | See the [voice list](https://github.com/tom-aai/assemblyai-livekit-tts#voices) |
 | `AGENT_GREETING` | "Hi! I can look anything up…" | First thing the agent says |
-| `PARALLEL_SEARCH_MODE` | `fast` | `turbo` (~200 ms, English/Japanese only), `fast`, `basic`, `advanced` (~3 s) |
+| `PARALLEL_SEARCH_MODE` | `turbo` | `turbo`, `fast`, `basic`, `advanced` |
 | `PARALLEL_MAX_CHARS` | `4000` | Total excerpt characters per search |
 | `PARALLEL_MAX_RESULTS` | `5` | Results per search |
-| `PARALLEL_RESEARCH_EFFORT` | `low` | `low`, `medium` (~15–20 s), `high` (~30–60 s) |
 
 ## Latency
 
@@ -182,8 +167,7 @@ AGENT · Today in San Francisco it's around fifty-seven degrees with showers...
 └──────────────────────────────────────────────┘
 ```
 
-A search turn adds one LLM tool call (~0.6 s) and the Parallel search (~0.7–1.7 s). For
-faster turns, try `PARALLEL_SEARCH_MODE=turbo` or a smaller `PARALLEL_MAX_CHARS`.
+Tool calls add a network round trip. Use the CLI examples above to measure each API on your connection.
 
 ## Tests
 
