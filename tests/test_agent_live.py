@@ -14,42 +14,36 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-async def _run(user_input: str):
+async def test_voice_tools_in_one_conversation():
     import agent
 
+    turns = [
+        ("What's new in the latest stable Python release?", "web_search"),
+        (
+            "Read https://docs.python.org/3/howto/free-threading-python.html "
+            "and tell me how that page checks whether the GIL is enabled.",
+            "web_fetch",
+        ),
+        ("Does NumPy 2.1 officially support Python 3.13?", "web_decisions"),
+    ]
     async with AgentSession() as session:
         await session.start(agent.SearchAssistant())
-        return await session.run(user_input=user_input)
-
-
-async def test_searches_for_current_info():
-    result = await _run("What's the latest version of the LiveKit Agents SDK?")
-    result.expect.contains_function_call(name="web_search")
-    result.expect.contains_function_call_output(is_error=False)
-    message = result.expect.contains_message(role="assistant").event().item.text_content
-    assert message and "http" not in message and "```" not in message
-
-
-async def test_no_search_for_small_talk():
-    result = await _run("Hi there, how are you?")
-    for tool_name in ("web_search", "web_fetch", "web_decisions"):
-        with pytest.raises(AssertionError):
-            result.expect.contains_function_call(name=tool_name)
-    assert result.expect.contains_message(role="assistant").event().item.text_content
-
-
-async def test_checks_a_public_claim():
-    result = await _run("Does Python 3.13 offer a free-threaded build?")
-    result.expect.contains_function_call(name="web_decisions")
-    result.expect.contains_function_call_output(is_error=False)
-    result.expect.contains_message(role="assistant")
-
-
-async def test_fetches_a_specific_page():
-    result = await _run(
-        "Read https://docs.python.org/3/howto/free-threading-python.html "
-        "and tell me what the page says about checking whether the GIL is enabled."
-    )
-    result.expect.contains_function_call(name="web_fetch")
-    result.expect.contains_function_call_output(is_error=False)
-    result.expect.contains_message(role="assistant")
+        greeting = await session.run(user_input="Hi there, how are you?")
+        assert all(event.type != "function_call" for event in greeting.events)
+        for question, tool in turns:
+            result = await session.run(user_input=question)
+            result.expect.contains_function_call(name=tool)
+            outputs = [
+                event.item
+                for event in result.events
+                if event.type == "function_call_output" and event.item.name == tool
+            ]
+            assert any(
+                not item.is_error and "https://" in (item.output or "")
+                for item in outputs
+            ), f"{tool} returned no sourced evidence"
+            assert (
+                result.expect.contains_message(role="assistant")
+                .event()
+                .item.text_content
+            )

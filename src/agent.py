@@ -57,7 +57,8 @@ INSTRUCTIONS = textwrap.dedent(
     How you use the web:
     - Answer greetings, arithmetic, stable common knowledge, and questions already
       answered by the conversation directly. Clarify an ambiguous entity first.
-    - Use web_decisions for one public, verifiable yes/no claim. It gathers its
+    - For a verifiable yes/no question, call web_decisions first. Put the subject
+      in state and use a named noul question for the claim. It gathers its
       own evidence. Treat a probability near one half, a refusal, or missing
       support as uncertain. Never turn missing evidence into a definite no.
     - Use web_search for open-ended questions needing current, exact, or unfamiliar
@@ -93,13 +94,15 @@ class SearchAssistant(Agent):
             instructions=INSTRUCTIONS.format(
                 today=date.today().strftime("%A, %B %d, %Y")
             ),
-            mcp_servers=[
-                mcp.MCPServerHTTP(
-                    "https://mcp.parallel.ai/mcp?tools=web_search,web_fetch,web_decisions",
-                    transport_type="streamable_http",
-                    headers={"Authorization": f"Bearer {key}"} if key else None,
-                    allowed_tools=["web_search", "web_fetch", "web_decisions"],
-                    client_session_timeout_seconds=30,
+            tools=[
+                mcp.MCPToolset(
+                    id="parallel",
+                    mcp_server=mcp.MCPServerHTTP(
+                        "https://mcp.parallel.ai/mcp?tools=web_search,web_fetch,web_decisions",
+                        transport_type="streamable_http",
+                        headers={"Authorization": f"Bearer {key}"} if key else None,
+                        client_session_timeout_seconds=30,
+                    ),
                 )
             ],
         )
