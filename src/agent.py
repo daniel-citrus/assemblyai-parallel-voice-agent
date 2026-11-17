@@ -4,13 +4,14 @@ Two stacks, picked with AGENT_STACK:
 
 * local (default): runs on your machine with no LiveKit Cloud account. Calls
   AssemblyAI directly for everything voice and language:
-    STT  AssemblyAI Universal-3.6 Pro streaming (+ its built-in turn detection)
+    STT  AssemblyAI 3.7 realtime agent model (+ its built-in turn detection)
     LLM  AssemblyAI LLM Gateway (OpenAI-compatible; Claude, GPT, Gemini, ...)
     TTS  AssemblyAI Streaming TTS
   Needs only ASSEMBLYAI_API_KEY and PARALLEL_API_KEY.
 
-* cloud: LiveKit Inference for STT/LLM/turn detection plus ai-coustics noise
-  cancellation, billed through your LiveKit Cloud project.
+* cloud: the same AssemblyAI STT, plus LiveKit Inference for the LLM and turn
+  detection and ai-coustics noise cancellation, billed through your LiveKit
+  Cloud project.
 
 Run it:
     uv run python src/agent.py console          # talk to it in your terminal
@@ -65,7 +66,9 @@ LLM_MODEL = os.environ.get(
     # Fastest tool-calling model on the gateway in our tests (~0.6 s per call).
     "claude-haiku-4-5-20251001" if STACK == "local" else "google/gemma-4-31b-it",
 )
-STT_MODEL = os.environ.get("ASSEMBLYAI_STT_MODEL", "universal-3-6-pro")
+# AssemblyAI's newest streaming model, built for voice agents. Both stacks call it
+# directly: LiveKit Inference only offers up to Universal-3.6 Pro.
+STT_MODEL = os.environ.get("ASSEMBLYAI_STT_MODEL", "assemblyai-stt-3-7-realtime-agent")
 TTS_VOICE = os.environ.get("ASSEMBLYAI_TTS_VOICE", "aai-violet")
 LLM_GATEWAY_URL = "https://llm-gateway.assemblyai.com/v1"
 
@@ -154,17 +157,17 @@ def parallel_mcp_server() -> mcp.MCPServerHTTP:
 
 
 def session_options() -> dict[str, Any]:
-    """STT and turn handling for the selected stack."""
+    """STT, TTS and turn handling for the selected stack."""
+    from livekit.plugins import assemblyai, silero
+
+    stt = assemblyai.STT(model=STT_MODEL, keyterms_prompt=KEYTERMS)
     tts = assemblyai_tts.TTS(voice_id=TTS_VOICE, language="english")
 
     if STACK == "cloud":
-        from livekit.agents import STTContextOptions, inference
+        from livekit.agents import inference
 
         return dict(
-            stt=inference.STT(model="assemblyai/universal-3-5-pro", language="en"),
-            stt_context_options=STTContextOptions(
-                keyterms=KEYTERMS, keyterm_detection={"enabled": True}
-            ),
+            stt=stt,
             tts=tts,
             turn_handling=TurnHandlingOptions(
                 turn_detection=inference.TurnDetector(),
@@ -173,12 +176,10 @@ def session_options() -> dict[str, Any]:
             ),
         )
 
-    from livekit.plugins import assemblyai, silero
-
     return dict(
         # AssemblyAI streaming STT decides when the caller has finished their
         # turn (semantic + acoustic end-of-turn), so no separate turn model.
-        stt=assemblyai.STT(model=STT_MODEL, keyterms_prompt=KEYTERMS),
+        stt=stt,
         tts=tts,
         # Silero VAD (runs locally) lets the caller interrupt the agent.
         vad=silero.VAD.load(),

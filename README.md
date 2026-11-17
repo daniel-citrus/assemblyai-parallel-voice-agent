@@ -7,7 +7,7 @@ LiveKit Cloud account needed, using two API keys.
 
 ```
 caller ─► AssemblyAI STT ─► LLM (AssemblyAI LLM Gateway) ─► AssemblyAI TTS ─► caller
-          Universal-3.6 Pro        │
+          3.7 realtime agent       │
           + end-of-turn            ├─ web_search    → Parallel Search  (~0.7 s)
                                    ├─ read_webpage  → Parallel Extract
                                    └─ deep_research → Parallel Responses (~5-10 s)
@@ -122,11 +122,13 @@ Set `PARALLEL_TOOL_SOURCE`:
 
 ## Local vs. LiveKit Cloud stack
 
-`AGENT_STACK` picks the speech and LLM providers:
+`AGENT_STACK` picks the speech and LLM providers. Both stacks call AssemblyAI's
+newest streaming model, `assemblyai-stt-3-7-realtime-agent`, directly; LiveKit
+Inference only offers up to Universal-3.6 Pro.
 
 | | `local` (default) | `cloud` |
 | --- | --- | --- |
-| STT | AssemblyAI Universal-3.6 Pro, called directly | AssemblyAI Universal-3.5 Pro via LiveKit Inference |
+| STT | AssemblyAI 3.7 realtime agent model, called directly | Same |
 | Turn detection | AssemblyAI end-of-turn | LiveKit turn detector |
 | Interruptions | Silero VAD (on-device) | LiveKit adaptive interruption |
 | LLM | [AssemblyAI LLM Gateway](https://www.assemblyai.com/docs/llm-gateway/quickstart) | LiveKit Inference |
@@ -158,7 +160,7 @@ All optional; see [`.env.example`](.env.example).
 | `AGENT_STACK` | `local` | `local` or `cloud` |
 | `PARALLEL_TOOL_SOURCE` | `api` | `api` or `mcp` |
 | `LLM_MODEL` | `claude-haiku-4-5-20251001` | Gateway model (local) or LiveKit Inference model (cloud) |
-| `ASSEMBLYAI_STT_MODEL` | `universal-3-6-pro` | Local stack only |
+| `ASSEMBLYAI_STT_MODEL` | `assemblyai-stt-3-7-realtime-agent` | AssemblyAI's newest streaming model for voice agents |
 | `ASSEMBLYAI_TTS_VOICE` | `aai-violet` | See the [voice list](https://github.com/tom-aai/assemblyai-livekit-tts#voices) |
 | `AGENT_GREETING` | "Hi! I can look anything up…" | First thing the agent says |
 | `PARALLEL_SEARCH_MODE` | `fast` | `turbo` (~200 ms, English/Japanese only), `fast`, `basic`, `advanced` (~3 s) |
