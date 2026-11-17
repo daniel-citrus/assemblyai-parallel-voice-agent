@@ -4,7 +4,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from parallel_tools import ParallelConfig, ParallelTools, _format_results
+from parallel_api import ParallelConfig, _format_results
+from parallel_tools import ParallelTools
 
 
 def test_format_results():

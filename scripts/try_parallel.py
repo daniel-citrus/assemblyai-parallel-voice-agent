@@ -7,7 +7,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from parallel_tools import ParallelTools  # noqa: E402
+from parallel_api import ParallelAPI  # noqa: E402
 
 load_dotenv(".env.local")
 
@@ -22,7 +22,7 @@ async def main() -> None:
     group.add_argument("--decision", metavar="SUBJECT", help="check a yes/no question")
     args = ap.parse_args()
 
-    tools = ParallelTools()
+    tools = ParallelAPI()
     t0 = time.perf_counter()
     try:
         if args.decision:

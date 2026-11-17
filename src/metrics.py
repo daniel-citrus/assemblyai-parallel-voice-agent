@@ -12,6 +12,7 @@ See https://docs.livekit.io/testing/observability/data/
 from __future__ import annotations
 
 import logging
+import os
 
 from livekit.agents import AgentSession, ConversationItemAddedEvent
 from livekit.agents.llm import ChatMessage, MetricsReport
@@ -63,13 +64,16 @@ class TurnMetricsReporter:
 
     def attach(self, session: AgentSession) -> None:
         """Subscribe to the session's per-component and conversation events."""
+        session.on("conversation_item_added", self._on_conversation_item_added)
+        self.verbose = os.getenv("AGENT_METRICS") == "1"
+        if not self.verbose:
+            return
         if session.stt is not None:
             session.stt.on("metrics_collected", self._on_stt_metrics)
         if session.llm is not None:
             session.llm.on("metrics_collected", self._on_llm_metrics)
         if session.tts is not None:
             session.tts.on("metrics_collected", self._on_tts_metrics)
-        session.on("conversation_item_added", self._on_conversation_item_added)
 
     # -- Per-component metrics, logged as each pipeline stage finishes ---------
 
@@ -112,6 +116,8 @@ class TurnMetricsReporter:
         if item.text_content:
             who = "USER " if item.role == "user" else "AGENT"
             metrics_logger.info("%s · %s", who, item.text_content)
+        if not self.verbose:
+            return
         if item.role == "user":
             self._pending_user_metrics = metrics
         elif item.role == "assistant":

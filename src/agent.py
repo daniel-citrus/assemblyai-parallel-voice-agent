@@ -24,10 +24,11 @@ import logging
 import os
 import textwrap
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 import assemblyai_tts
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 from livekit.agents import (
     Agent,
     AgentServer,
@@ -59,8 +60,9 @@ TOOL_SOURCE = os.environ.get("PARALLEL_TOOL_SOURCE", "api").lower()
 #   https://docs.livekit.io/agents/models/llm/
 LLM_MODEL = os.environ.get(
     "LLM_MODEL",
-    # Fastest tool-calling model on the gateway in our tests (~0.6 s per call).
-    "claude-haiku-4-5-20251001" if STACK == "local" else "google/gemma-4-31b-it",
+    dotenv_values(Path(__file__).with_name("gateway.env"))["LLM_MODEL"]
+    if STACK == "local"
+    else "google/gemma-4-31b-it",
 )
 STT_MODEL = os.environ.get("ASSEMBLYAI_STT_MODEL", "universal-3-6-pro")
 TTS_VOICE = os.environ.get("ASSEMBLYAI_TTS_VOICE", "aai-violet")

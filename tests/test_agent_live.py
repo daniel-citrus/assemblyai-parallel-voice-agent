@@ -30,7 +30,7 @@ async def _run(user_input: str):
     # The judge sends `temperature`, which some gateway models (e.g. Claude Haiku
     # 5.5) reject, so it uses its own model.
     judge = openai.LLM(
-        model=os.environ.get("JUDGE_MODEL", "claude-sonnet-4-6"),
+        model=os.environ.get("JUDGE_MODEL", agent.LLM_MODEL),
         base_url=agent.LLM_GATEWAY_URL,
         api_key=os.environ["ASSEMBLYAI_API_KEY"],
     )
