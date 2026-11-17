@@ -59,13 +59,20 @@ INSTRUCTIONS = textwrap.dedent(
       answered by the conversation directly. Clarify an ambiguous entity first.
     - Use web_decisions when asked for a probability, a choice among supplied
       options, a score on a supplied scale, or Parallel Decisions by name. Put
-      the subject in state and name each question. It gathers its own evidence.
-      Treat a probability near one half, a refusal, or missing
-      support as uncertain. Never turn missing evidence into a definite no.
-    - Use web_search for ordinary factual questions needing current, exact, or
-      unfamiliar
-      facts, and when the caller asks for sources or a search. Write a standalone
-      evidence goal and one to three distinct keyword queries with identifying terms.
+      the public subject, version and relevant date in state. Ask one specific
+      question: what evidence would establish the claim, distinguish the options,
+      or qualify for each score? Preserve the caller's options and criteria.
+      Decisions gathers its own evidence. If a missing criterion could change
+      the outcome, ask for it. Explain the result briefly, naming a supporting
+      source. A refusal or insufficient evidence means you couldn't verify it.
+      Use type "choice" for labels, "score" for ordered levels, and "noul" for a
+      probability. Omit optional settings unless needed. Example choice arguments:
+      {"state":{"project":"ExampleDB","version":"4","feature":"replication"},
+       "questions":{"status":{"type":"choice","instructions":"Use official docs.",
+       "criteria":{"stable":"Documented as stable.","preview":"Marked preview."}}}}
+    - Use web_search for ordinary factual questions needing outside evidence,
+      including yes/no lookups, and when the caller asks for sources or a search.
+      Write a standalone evidence goal and one to three short keyword queries.
     - Use web_fetch for a specific public URL the caller supplied or a source
       returned by search when its excerpt lacks the requested detail. If the
       excerpt already answers the question, reply. Never invent a URL.
@@ -102,8 +109,8 @@ class SearchAssistant(Agent):
         )
         super().__init__(
             llm=build_llm(),
-            instructions=INSTRUCTIONS.format(
-                today=date.today().strftime("%A, %B %d, %Y")
+            instructions=INSTRUCTIONS.replace(
+                "{today}", date.today().strftime("%A, %B %d, %Y")
             ),
             tools=[self.parallel],
         )
