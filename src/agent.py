@@ -167,10 +167,16 @@ async def entrypoint(ctx: JobContext) -> None:
             expressive=False,
         )
 
-    @session.on("conversation_item_added")
-    def show_transcript(event: ConversationItemAddedEvent) -> None:
-        if isinstance(event.item, llm.ChatMessage) and event.item.text_content:
-            logger.info("%s · %s", event.item.role.upper(), event.item.text_content)
+    if os.getenv("AGENT_METRICS") == "1":
+        from metrics import TurnMetricsReporter
+
+        TurnMetricsReporter().attach(session)
+    else:
+
+        @session.on("conversation_item_added")
+        def show_transcript(event: ConversationItemAddedEvent) -> None:
+            if isinstance(event.item, llm.ChatMessage) and event.item.text_content:
+                logger.info("%s · %s", event.item.role.upper(), event.item.text_content)
 
     options = room_io.RoomOptions()
     if CLOUD_INFERENCE:
