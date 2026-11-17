@@ -37,3 +37,20 @@ The voice prompt controls routing. The arguments sent to Decisions define the ju
 Read back the label and the evidence behind it in one sentence. If the tool declines or the source is about a different release, tell the caller you couldn't verify the label. Missing documentation alone doesn't establish that a feature is unsupported.
 
 For a probability, use `noul` and define one claim that could be true or false. For a score, define what each level means and order the levels from lowest to highest. A request like “Should we upgrade?” needs the caller's criterion first. Asking “Which package do you need the upgrade to support?” gives the agent something it can check. [Decisions question types](https://docs.parallel.ai/decisions/question-types)
+
+## Build an agent around one recurring decision
+
+Suppose your team maintains a compatibility table and uses the same three labels for every entry. Put the `support_status` question above in your application once. Let the conversation supply the project, version, and feature in `state`. That way, “experimental” means the same thing on every row.
+
+Try this as a demo:
+
+| Caller says | What your app should do |
+| --- | --- |
+| “Classify free-threaded builds for CPython.” | Ask “Which Python version?” The release can change the label. |
+| “Three point thirteen.” | Evaluate the completed row once. Keep the returned label and citations together. If the evidence is insufficient, leave the row unresolved. |
+| “Why did you pick that label?” | Explain it from the saved excerpt and name the source. |
+| “Actually, check three point fourteen.” | Change the version and evaluate again with the same label definitions. |
+
+For a prototype, the existing MCP tool and conversation history are enough to try this interaction. If other code will consume the table, give the app ownership of the rubric: expose a small tool such as `classify_support(project, version, feature)` and have it submit the fixed question to Decisions. Your application decides whether to record a label or flag the row for review. The [standalone API example](../src/parallel_api.py) shows how to send a Decisions request.
+
+If one row needs several related judgments, send them as named questions about the same release. Citations belong to the whole request, so check which excerpt supports each answer before explaining it. [Decisions best practices](https://docs.parallel.ai/decisions/best-practices)
