@@ -49,15 +49,15 @@ lk cloud auth
 lk agent create
 ```
 
-This builds the [`Dockerfile`](../Dockerfile). Add `ASSEMBLYAI_API_KEY` as a secret (`lk agent update-secrets`). By default the deployed worker calls AssemblyAI directly, like the terminal demo.
+This builds the [`Dockerfile`](../Dockerfile). Add `ASSEMBLYAI_API_KEY` as a secret (`lk agent update-secrets`). The deployed worker calls AssemblyAI directly, like the terminal demo.
 
-To use the original LiveKit Inference setup, set `AGENT_STACK=cloud` in the worker environment. The Docker image includes the cloud extras. When running a worker on your own machine against a LiveKit Cloud project, use `uv run --extra cloud python src/agent.py dev` with the project URL and credentials. This mode routes transcription and the LLM through LiveKit, enables adaptive interruption and ai-coustics noise cancellation, and still uses AssemblyAI for speech playback. Both modes use the same Parallel MCP tools.
+To run a worker on your own machine against a LiveKit Cloud project, use `uv run python src/agent.py dev` with the project URL and credentials. The agent calls AssemblyAI and Parallel directly either way.
 
 ## Tune a voice session
 
 Set `AGENT_METRICS=1` in `.env.local` and restart to see the original per-turn timing report alongside the transcript. If a reply feels slow, compare the end-of-utterance delay, time to the first LLM token, and time to the first byte of synthesized speech. The report prints the timings available for that turn.
 
-Set `ASSEMBLYAI_TTS_VOICE` to change the speaking voice and `ASSEMBLYAI_STT_MODEL` to change the transcription model. It defaults to `universal-3-6-pro` on both stacks. For the standalone Search example, `PARALLEL_SEARCH_MODE`, `PARALLEL_MAX_RESULTS`, and `PARALLEL_MAX_CHARS` control the mode, result count, and excerpt budget. These three settings apply to the direct API example only.
+Set `ASSEMBLYAI_TTS_VOICE` to change the speaking voice and `ASSEMBLYAI_STT_MODEL` to change the transcription model. It defaults to `universal-3-6-pro`. The voice defaults to `aai-kyla`; see the [voice list](https://github.com/tom-aai/assemblyai-livekit-tts#voices). For the standalone Search example, `PARALLEL_SEARCH_MODE`, `PARALLEL_MAX_RESULTS`, and `PARALLEL_MAX_CHARS` control the mode, result count, and excerpt budget. These three settings apply to the direct API example only.
 
 ## Tests
 

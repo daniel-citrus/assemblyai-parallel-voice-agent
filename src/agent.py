@@ -16,13 +16,10 @@ from livekit.agents import (
     AgentSession,
     ConversationItemAddedEvent,
     JobContext,
-    STTContextOptions,
     TurnHandlingOptions,
     cli,
-    inference,
     llm,
     mcp,
-    room_io,
 )
 from livekit.plugins import assemblyai, openai, silero
 
@@ -33,18 +30,10 @@ load_dotenv(".env.local")
 logger = logging.getLogger("agent")
 logger.setLevel(logging.INFO)
 
-CLOUD_INFERENCE = os.getenv("AGENT_STACK", "local").lower() == "cloud"
-if CLOUD_INFERENCE:
-    from livekit.plugins import ai_coustics
-
 defaults = dotenv_values(Path(__file__).with_name("gateway.env"))
-LLM_MODEL = os.environ.get(
-    "LLM_MODEL",
-    defaults["CLOUD_LLM_MODEL" if CLOUD_INFERENCE else "LLM_MODEL"],
-)
-# AssemblyAI Universal-3.6 Pro streaming, used by both stacks.
+LLM_MODEL = os.environ.get("LLM_MODEL", defaults["LLM_MODEL"])
 STT_MODEL = os.environ.get("ASSEMBLYAI_STT_MODEL", "universal-3-6-pro")
-TTS_VOICE = os.environ.get("ASSEMBLYAI_TTS_VOICE", "aai-violet")
+TTS_VOICE = os.environ.get("ASSEMBLYAI_TTS_VOICE", "aai-kyla")
 LLM_GATEWAY_URL = "https://llm-gateway.assemblyai.com/v1"
 
 # Names callers are likely to say; boosts recognition accuracy.
@@ -100,8 +89,6 @@ INSTRUCTIONS = textwrap.dedent(
 
 
 def build_llm() -> llm.LLM:
-    if CLOUD_INFERENCE:
-        return inference.LLM(model=LLM_MODEL)
     return openai.LLM(
         model=LLM_MODEL,
         base_url=LLM_GATEWAY_URL,
@@ -143,33 +130,19 @@ server = AgentServer()
 
 @server.rtc_session(agent_name="parallel-search-agent")
 async def entrypoint(ctx: JobContext) -> None:
-    tts = assemblyai_tts.TTS(voice_id=TTS_VOICE, language="english")
-    if CLOUD_INFERENCE:
-        session = AgentSession(
-            stt=inference.STT(model=f"assemblyai/{STT_MODEL}", language="en"),
-            stt_context_options=STTContextOptions(
-                keyterms=KEYTERMS, keyterm_detection={"enabled": True}
-            ),
-            tts=tts,
-            turn_handling=TurnHandlingOptions(
-                turn_detection=inference.TurnDetector(),
-                interruption={"mode": "adaptive"},
-                preemptive_generation={"enabled": True},
-            ),
-            expressive=False,
-        )
-    else:
-        session = AgentSession(
-            stt=assemblyai.STT(model=STT_MODEL, keyterms_prompt=KEYTERMS),
-            tts=tts,
-            vad=silero.VAD.load(),
-            turn_handling=TurnHandlingOptions(
-                turn_detection="stt",
-                interruption={"mode": "vad"},
-                preemptive_generation={"enabled": True},
-            ),
-            expressive=False,
-        )
+    session = AgentSession(
+        # AssemblyAI streaming STT also decides when the caller finished speaking.
+        stt=assemblyai.STT(model=STT_MODEL, keyterms_prompt=KEYTERMS),
+        tts=assemblyai_tts.TTS(voice_id=TTS_VOICE, language="english"),
+        # Silero VAD runs locally and lets the caller interrupt the agent.
+        vad=silero.VAD.load(),
+        turn_handling=TurnHandlingOptions(
+            turn_detection="stt",
+            interruption={"mode": "vad"},
+            preemptive_generation={"enabled": True},
+        ),
+        expressive=False,
+    )
 
     if os.getenv("AGENT_METRICS") == "1":
         from metrics import TurnMetricsReporter
@@ -182,16 +155,7 @@ async def entrypoint(ctx: JobContext) -> None:
             if isinstance(event.item, llm.ChatMessage) and event.item.text_content:
                 logger.info("%s · %s", event.item.role.upper(), event.item.text_content)
 
-    options = room_io.RoomOptions()
-    if CLOUD_INFERENCE:
-        options = room_io.RoomOptions(
-            audio_input=room_io.AudioInputOptions(
-                noise_cancellation=ai_coustics.audio_enhancement(
-                    model=ai_coustics.EnhancerModel.QUAIL_VF_S
-                )
-            )
-        )
-    await session.start(agent=SearchAssistant(), room=ctx.room, room_options=options)
+    await session.start(agent=SearchAssistant(), room=ctx.room)
     await ctx.connect()
 
 

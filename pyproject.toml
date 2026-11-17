@@ -11,9 +11,6 @@ dependencies = [
     "python-dotenv",
 ]
 
-[project.optional-dependencies]
-cloud = ["livekit-agents[turn-detector]~=1.8", "livekit-plugins-ai-coustics"]
-
 [dependency-groups]
 dev = ["pytest", "pytest-asyncio", "ruff"]
 
