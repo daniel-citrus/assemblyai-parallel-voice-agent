@@ -5,6 +5,7 @@
 - **Saw a console deprecation notice?** The locked LiveKit version supports this command. Wait for the greeting before speaking or typing.
 - **No transcript or no sound?** Add `--text` to the console command. To choose a microphone or speaker, run `uv run python src/agent.py console --list-devices`, then pass `--input-device` or `--output-device` with its name. Check your terminal's microphone permission.
 - **Gateway access error after the greeting?** Check your AssemblyAI key. If the error names a restricted gateway model, set `LLM_MODEL` in `.env.local` to an account-enabled option that supports streaming and tools. [AssemblyAI gateway options](https://www.assemblyai.com/docs/llm-gateway/available-models)
+- **Test page says the audio connection failed?** The page reached LiveKit, but media couldn't flow. Plain `livekit-server --dev` offers your network addresses, so a VPN can block them, and changing networks after starting it leaves stale ones. Restart it with `livekit-server --dev --config web/livekit.yaml`, which uses only localhost.
 - **Web tool failed?** Check that the machine can reach `https://mcp.parallel.ai/mcp`. Anonymous limits can apply during discovery or mid-conversation, especially during repeated setup tests. If you hit the limit, wait and restart the agent, or set `PARALLEL_API_KEY` and restart for authenticated usage.
 
 ## Standalone API example
@@ -18,7 +19,9 @@ uv run python scripts/try_parallel.py --decision "Python 3.13, python.org" "Does
 
 ## Browser or room
 
-Install the LiveKit server and CLI first (on macOS, `brew install livekit livekit-cli`). Start the local server:
+For the quickest browser setup, use the [test page](../README.md#watch-it-in-the-browser). Its token server sends the agent into each new room, so you don't need `lk dispatch create`. Set `WEB_PORT` or pass `--port` to change port 8090. If `LIVEKIT_URL`, `LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET` point at a LiveKit Cloud project, the page and a local `dev` worker use that project instead.
+
+To use the Agents Playground instead, install the LiveKit server and CLI first (on macOS, `brew install livekit livekit-cli`). Start the local server:
 
 ```bash
 livekit-server --dev

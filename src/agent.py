@@ -24,6 +24,7 @@ from livekit.agents import (
 from livekit.plugins import assemblyai, openai, silero
 
 from voice_mcp import VoiceMCPServer
+from web_events import ToolEventPublisher
 
 load_dotenv(".env.local")
 
@@ -154,6 +155,10 @@ async def entrypoint(ctx: JobContext) -> None:
         def show_transcript(event: ConversationItemAddedEvent) -> None:
             if isinstance(event.item, llm.ChatMessage) and event.item.text_content:
                 logger.info("%s · %s", event.item.role.upper(), event.item.text_content)
+
+    if not ctx.is_fake_job():
+        # Shows each tool call on the web test page (web/server.py).
+        ToolEventPublisher(ctx.room).attach(session)
 
     await session.start(agent=SearchAssistant(), room=ctx.room)
     await ctx.connect()

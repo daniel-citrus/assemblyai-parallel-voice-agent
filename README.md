@@ -34,6 +34,18 @@ Allow microphone access and wait for the greeting. To type instead, add `--text`
 
 Watch the tool names in the terminal. The agent chooses when to call each one. Fetch is for a specific page or a missing detail, so a search that already answers the question needs only one call.
 
+## Watch it in the browser
+
+The test page in [web/](web/index.html) shows the conversation with every Search, Fetch, and Decisions call inline, including the arguments the agent sent and what came back. It needs a local LiveKit server (on macOS, `brew install livekit`). Run each command in its own terminal from the repo folder. The config keeps audio on localhost, so a VPN or switching Wi-Fi doesn't break the connection.
+
+```sh
+livekit-server --dev --config web/livekit.yaml
+uv run python src/agent.py dev
+uv run python web/server.py
+```
+
+Open http://localhost:8090, select **Start session**, and allow microphone access. You can also type, or use the example buttons for the three tools.
+
 ## Make it yours
 
 Both Search and Decisions are already connected. Start with a pair of questions about the same subject. “Does Python 3.13 support free threading?” is a factual lookup. “Classify that support as stable, experimental, or explicitly unsupported” asks for a decision against supplied options. [See the prompt and tool input for this example](docs/decision-prompts.md).

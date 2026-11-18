@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Voice agent test page</title>
+  <link rel="icon" href="data:,">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono&family=Atkinson+Hyperlegible+Next:wght@400;600;700&display=swap">
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #eef1f4;
+      --surface: #ffffff;
+      --ink: #18212c;
+      --muted: #5a6573;
+      --line: #d3d9e0;
+      --search: #2459c9;
+      --fetch: #13806a;
+      --decisions: #8040c0;
+      --thinking: #a2660f;
+      --danger: #b3261e;
+      --sans: "Atkinson Hyperlegible Next", system-ui, sans-serif;
+      --mono: "Atkinson Hyperlegible Mono", ui-monospace, monospace;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1a212b;
+        --surface: #232c38;
+        --ink: #e6ebf1;
+        --muted: #9aa5b3;
+        --line: #344050;
+        --search: #82a8f5;
+        --fetch: #52c3a7;
+        --decisions: #bd90ec;
+        --thinking: #e3ab4f;
+        --danger: #f2827a;
+      }
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body { background: var(--bg); color: var(--ink); font: 400 1rem/1.5 var(--sans); }
+    code { font-family: var(--mono); font-size: 0.875em; }
+    :focus-visible { outline: 3px solid var(--search); outline-offset: 2px; }
+    [hidden] { display: none !important; }
+
+    .app { height: 100dvh; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+    .column { width: 100%; max-width: 46rem; margin: 0 auto; padding: 0 16px; }
+    header, footer { background: var(--bg); }
+    header { border-bottom: 1px solid var(--line); }
+    footer { border-top: 1px solid var(--line); }
+
+    .bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem 1rem; padding-block: 0.875rem; }
+    .title { margin: 0; font-size: 0.875rem; font-weight: 600; color: var(--muted); }
+    .state { margin: 0; display: flex; align-items: center; gap: 0.6rem; font-size: 1.75rem; font-weight: 700; line-height: 1.15; letter-spacing: -0.01em; }
+    .dot { flex: none; width: 0.75rem; height: 0.75rem; border-radius: 50%; border: 2px solid var(--muted); }
+    [data-state="listening"] .dot { border-color: var(--ink); }
+    [data-state="thinking"] .dot { border-color: var(--thinking); background: var(--thinking); }
+    [data-state="speaking"] .dot { border-color: var(--ink); background: var(--ink); animation: pulse 1.2s ease-in-out infinite; }
+    @keyframes pulse { 50% { transform: scale(1.4); } }
+    @media (prefers-reduced-motion: reduce) { [data-state="speaking"] .dot { animation: none; } }
+
+    .controls { display: flex; gap: 0.5rem; }
+    button { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 0.5rem; padding: 0.5rem 0.9rem; cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: 0.5; }
+    .primary { background: var(--ink); border-color: var(--ink); color: var(--bg); font-weight: 600; }
+    .mic.hearing { box-shadow: 0 0 0 2px var(--ink); }
+
+    main { overflow-y: auto; }
+    .intro { max-width: 34rem; padding-block: 3rem; }
+    .intro h2 { margin: 0 0 0.5rem; font-size: 1.5rem; line-height: 1.2; }
+    .intro p { margin: 0 0 1.25rem; color: var(--muted); }
+    .intro ol { margin: 0 0 1.5rem; padding-left: 1.25rem; color: var(--muted); }
+    .intro li + li { margin-top: 0.25rem; }
+    .intro .problem { color: var(--danger); }
+
+    .timeline { list-style: none; margin: 0; padding: 1.25rem 0 2rem; display: flex; flex-direction: column; gap: 0.9rem; }
+    .turn { display: grid; grid-template-columns: 4rem minmax(0, 1fr); gap: 0.1rem 1rem; align-items: baseline; }
+    .who { font-size: 0.875rem; font-weight: 600; color: var(--muted); }
+    .said { margin: 0; max-width: 65ch; }
+    .said.interim { color: var(--muted); }
+    .note { color: var(--muted); font-size: 0.9375rem; }
+    .note.error { color: var(--danger); }
+    .note button { margin-left: 0.5rem; padding: 0.2rem 0.6rem; }
+
+    [data-tool="search"] { --tool: var(--search); }
+    [data-tool="fetch"] { --tool: var(--fetch); }
+    [data-tool="decisions"] { --tool: var(--decisions); }
+    [data-tool="other"] { --tool: var(--muted); }
+    .tool details { border-left: 3px solid var(--tool); padding-left: 0.75rem; }
+    .tool summary { cursor: pointer; }
+    .tool-name { font-weight: 700; color: var(--tool); }
+    .tool-what { margin-left: 0.4rem; overflow-wrap: anywhere; }
+    .tool-time { margin-left: 0.4rem; font-size: 0.875rem; color: var(--muted); white-space: nowrap; }
+    .failed .tool-time { color: var(--danger); }
+    .tool h3 { margin: 0.75rem 0 0.25rem; font-size: 0.875rem; font-weight: 600; color: var(--muted); }
+    pre { margin: 0; max-height: 20rem; overflow: auto; padding: 0.75rem; background: var(--surface); border: 1px solid var(--line); border-radius: 0.5rem; font: 0.8125rem/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+    .tray { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.6rem; padding-block: 0.75rem 1rem; }
+    .prompts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
+    .prompt { display: grid; align-content: start; gap: 0.1rem; text-align: left; font-size: 0.875rem; line-height: 1.35; border-left: 3px solid var(--tool); padding: 0.5rem 0.7rem; }
+    .prompt b { color: var(--tool); }
+    form { display: flex; gap: 0.5rem; }
+    input { flex: 1; min-width: 0; font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 0.5rem; padding: 0.55rem 0.8rem; }
+    .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+    @media (max-width: 40rem) {
+      .state { font-size: 1.4rem; }
+      .turn { grid-template-columns: minmax(0, 1fr); }
+      .turn.note .who, .turn.tool .who { display: none; }
+      .prompts { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 80%; overflow-x: auto; padding-bottom: 0.25rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="column bar">
+        <div>
+          <h1 class="title">Parallel voice agent</h1>
+          <p class="state" id="state" data-state="off" role="status"><span class="dot"></span><span id="state-word">Not connected</span></p>
+        </div>
+        <div class="controls">
+          <button class="mic" id="mic" hidden>Mute mic</button>
+          <button id="end" hidden>End session</button>
+          <button class="primary" id="restart" hidden>Start new session</button>
+        </div>
+      </div>
+    </header>
+
+    <main id="main">
+      <div class="column">
+        <section class="intro" id="intro">
+          <h2>Talk to the agent and watch its lookups</h2>
+          <p>Start a session, then speak or type. Each Search, Fetch, or Decisions call appears in the conversation with the arguments the agent sent and what came back.</p>
+          <ol>
+            <li>Run <code>livekit-server --dev --config web/livekit.yaml</code></li>
+            <li>Run <code>uv run python src/agent.py dev</code></li>
+          </ol>
+          <button class="primary" id="start">Start session</button>
+          <p class="problem" id="problem" role="alert"></p>
+        </section>
+        <ol class="timeline" id="timeline" hidden></ol>
+      </div>
+    </main>
+
+    <footer>
+      <div class="column tray">
+        <div class="prompts">
+          <button class="prompt" data-tool="search" data-prompt="What changed in the latest stable Python release?" disabled><b>Search</b>What changed in the latest stable Python release?</button>
+          <button class="prompt" data-tool="fetch" data-prompt="Read the release notes you just cited. What do they say about upgrading?" disabled><b>Fetch</b>Read the release notes you just cited. What do they say about upgrading?</button>
+          <button class="prompt" data-tool="decisions" data-prompt="How likely is it that Python 3.13 offers a free-threaded build? Give me a probability." disabled><b>Decisions</b>How likely is it that Python 3.13 offers a free-threaded build? Give me a probability.</button>
+        </div>
+        <form id="ask">
+          <label class="visually-hidden" for="message">Message</label>
+          <input id="message" autocomplete="off" placeholder="Type a question" disabled>
+          <button class="primary" disabled>Send</button>
+        </form>
+      </div>
+    </footer>
+  </div>
+  <div id="audio" hidden></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.23.0/dist/livekit-client.umd.js"
+    integrity="sha384-HkA7rQNo8H04l1p4zoXX1Cy+h9YoYp8LvKt4vfMFhv4KFk07UkrNwIUnyBum8Pw6"
+    crossorigin="anonymous"></script>
+  <script>
+    const { Room, RoomEvent, Track } = LivekitClient;
+
+    // Sent by src/web_events.py.
+    const EVENTS_TOPIC = 'parallel.events';
+    const STATE_ATTRIBUTE = 'lk.agent.state';
+    const TOOLS = {
+      web_search: { label: 'Search', kind: 'search' },
+      web_fetch: { label: 'Fetch', kind: 'fetch' },
+      web_decisions: { label: 'Decisions', kind: 'decisions' },
+    };
+    const STATE_WORDS = {
+      initializing: 'Starting', idle: 'Idle', listening: 'Listening',
+      thinking: 'Thinking', speaking: 'Speaking',
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const main = $('main'), timeline = $('timeline'), input = $('message'), mic = $('mic');
+    const sendButton = $('ask').querySelector('button');
+    const prompts = document.querySelectorAll('.prompt');
+    const decoder = new TextDecoder();
+
+    let room = null;
+    let agentTimer = null;
+    const segments = new Map();  // transcript segment id -> <p>
+    const toolCalls = new Map(); // tool call id -> timeline entry
+
+    function setState(state, word) {
+      $('state').dataset.state = state;
+      $('state-word').textContent = word ?? STATE_WORDS[state] ?? state;
+    }
+
+    function setReady(ready) {
+      input.disabled = sendButton.disabled = !ready;
+      prompts.forEach((b) => { b.disabled = !ready; });
+    }
+
+    // Keeps the newest entry in view unless you've scrolled up to read.
+    function follow(change) {
+      const atBottom = main.scrollHeight - main.scrollTop - main.clientHeight < 80;
+      change();
+      if (atBottom) main.scrollTop = main.scrollHeight;
+    }
+
+    function entry(className, who = '') {
+      const li = document.createElement('li');
+      li.className = `turn ${className}`;
+      const label = document.createElement('span');
+      label.className = 'who';
+      label.textContent = who;
+      li.append(label);
+      follow(() => timeline.append(li));
+      return li;
+    }
+
+    function addTurn(role, text = '') {
+      const p = document.createElement('p');
+      p.className = 'said';
+      p.textContent = text;
+      entry(role, role === 'user' ? 'You' : 'Agent').append(p);
+      return p;
+    }
+
+    function note(text, isError = false) {
+      const span = document.createElement('span');
+      span.textContent = text;
+      const li = entry(isError ? 'note error' : 'note');
+      li.append(span);
+      return span;
+    }
+
+    function report(text) {
+      if (timeline.hidden) $('problem').textContent = text;
+      else note(text, true);
+    }
+
+    function pretty(value) {
+      if (typeof value === 'string') {
+        try { return JSON.stringify(JSON.parse(value), null, 2); } catch { return value; }
+      }
+      return JSON.stringify(value, null, 2);
+    }
+
+    function summarize(name, args) {
+      if (!args || typeof args !== 'object') return String(args ?? '');
+      if (name === 'web_search') return args.objective ?? (args.search_queries ?? []).join(', ');
+      if (name === 'web_fetch') return (args.urls ?? []).join(', ');
+      if (name === 'web_decisions') {
+        const subject = Object.values(args.state ?? {}).join(' ');
+        const questions = Object.entries(args.questions ?? {})
+          .map(([key, q]) => `${key} (${q?.type ?? 'question'})`).join(', ');
+        return [subject, questions].filter(Boolean).join(': ');
+      }
+      return '';
+    }
+
+    function addToolCall(ev) {
+      const tool = TOOLS[ev.name] ?? { label: ev.name, kind: 'other' };
+      const li = entry('tool');
+      li.dataset.tool = tool.kind;
+      const details = document.createElement('details');
+      const summary = document.createElement('summary');
+      const name = Object.assign(document.createElement('span'), { className: 'tool-name', textContent: tool.label });
+      const what = Object.assign(document.createElement('span'), { className: 'tool-what', textContent: summarize(ev.name, ev.arguments) });
+      const time = Object.assign(document.createElement('span'), { className: 'tool-time', textContent: 'Running' });
+      summary.append(name, what, time);
+      const argsHeading = Object.assign(document.createElement('h3'), { textContent: 'Arguments' });
+      const args = Object.assign(document.createElement('pre'), { textContent: pretty(ev.arguments) });
+      const resultHeading = Object.assign(document.createElement('h3'), { textContent: 'Result' });
+      const result = Object.assign(document.createElement('pre'), { textContent: 'Waiting for the result' });
+      details.append(summary, argsHeading, args, resultHeading, result);
+      li.append(details);
+      return { li, time, resultHeading, result };
+    }
+
+    function finishToolCall(call, ev) {
+      const seconds = ev.seconds == null ? '' : `${ev.seconds.toFixed(1)} s`;
+      call.li.classList.toggle('failed', ev.is_error);
+      call.time.textContent = ev.is_error ? `Failed ${seconds}`.trim() : seconds || 'Done';
+      call.resultHeading.textContent = ev.truncated ? 'Result (first 2,000 characters)' : 'Result';
+      call.result.textContent = pretty(ev.output);
+    }
+
+    function onAgentEvent(ev) {
+      if (ev.type === 'error') {
+        if (ev.recoverable) note(`Retrying ${ev.source} after ${ev.message}`);
+        else note(`Agent error from ${ev.source}: ${ev.message}`, true);
+        return;
+      }
+      let call = toolCalls.get(ev.id);
+      if (!call) {
+        call = addToolCall(ev);
+        toolCalls.set(ev.id, call);
+      }
+      if (ev.type === 'tool_ended') finishToolCall(call, ev);
+    }
+
+    // The agent streams its speech as text in chunks. Your speech arrives as a
+    // series of complete interim transcripts for the same segment.
+    async function onTranscription(reader, participantInfo) {
+      const attributes = reader.info.attributes ?? {};
+      const id = attributes['lk.segment_id'] ?? reader.info.id;
+      const fromYou = participantInfo.identity === room.localParticipant.identity;
+      let p = segments.get(id);
+      if (!p) {
+        p = addTurn(fromYou ? 'user' : 'agent');
+        segments.set(id, p);
+      }
+      p.classList.toggle('interim', fromYou && attributes['lk.transcription_final'] !== 'true');
+      let text = '';
+      for await (const chunk of reader) {
+        text += chunk;
+        follow(() => { p.textContent = text; });
+      }
+      if (!p.textContent) {
+        p.parentElement.remove();
+        segments.delete(id);
+      }
+    }
+
+    function onAgentJoined(agent) {
+      clearTimeout(agentTimer);
+      setReady(true);
+      setState(agent.attributes[STATE_ATTRIBUTE] ?? 'initializing');
+    }
+
+    function updateMic() {
+      mic.textContent = room.localParticipant.isMicrophoneEnabled ? 'Mute mic' : 'Unmute mic';
+    }
+
+    async function enableMic() {
+      try {
+        await room.localParticipant.setMicrophoneEnabled(true);
+        mic.disabled = false;
+        updateMic();
+      } catch (e) {
+        mic.disabled = true;
+        mic.textContent = 'Mic off';
+        note(`Microphone unavailable (${e.message}). You can still type.`);
+      }
+    }
+
+    function showAudioPrompt() {
+      if (room.canPlaybackAudio) return;
+      const span = note('Your browser blocked the agent\'s audio.');
+      const allow = Object.assign(document.createElement('button'), { textContent: 'Play audio' });
+      allow.onclick = async () => { await room.startAudio(); allow.remove(); };
+      span.append(allow);
+    }
+
+    function sessionControls(active) {
+      mic.hidden = $('end').hidden = !active;
+      $('restart').hidden = active || timeline.hidden;
+    }
+
+    function onDisconnected() {
+      clearTimeout(agentTimer);
+      setReady(false);
+      setState('off', 'Not connected');
+      note('Session ended.');
+      segments.clear();
+      toolCalls.clear();
+      room = null;
+      sessionControls(false);
+    }
+
+    async function start() {
+      $('start').disabled = $('restart').disabled = true;
+      $('problem').textContent = '';
+      setState('connecting', 'Connecting');
+      try {
+        let details;
+        try {
+          const res = await fetch('/token');
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          details = await res.json();
+        } catch (e) {
+          throw new Error(`Couldn't get a token from web/server.py (${e.message}). Check that it's still running.`);
+        }
+
+        const next = new Room();
+        next.on(RoomEvent.TrackSubscribed, (track) => {
+          if (track.kind === Track.Kind.Audio) $('audio').append(track.attach());
+        });
+        next.on(RoomEvent.TrackUnsubscribed, (track) => track.detach().forEach((el) => el.remove()));
+        next.on(RoomEvent.AudioPlaybackStatusChanged, showAudioPrompt);
+        next.on(RoomEvent.ParticipantConnected, (p) => { if (p.isAgent) onAgentJoined(p); });
+        next.on(RoomEvent.ParticipantDisconnected, (p) => {
+          if (!p.isAgent) return;
+          setReady(false);
+          setState('off', 'Agent left');
+          note('The agent left the room. Check the agent terminal for errors.', true);
+        });
+        next.on(RoomEvent.ParticipantAttributesChanged, (changed, p) => {
+          if (p.isAgent && STATE_ATTRIBUTE in changed) setState(changed[STATE_ATTRIBUTE]);
+        });
+        next.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
+          mic.classList.toggle('hearing', speakers.includes(next.localParticipant));
+        });
+        next.on(RoomEvent.DataReceived, (payload, participant, kind, topic) => {
+          if (topic === EVENTS_TOPIC) onAgentEvent(JSON.parse(decoder.decode(payload)));
+        });
+        next.on(RoomEvent.Disconnected, onDisconnected);
+        next.registerTextStreamHandler('lk.transcription', onTranscription);
+
+        try {
+          await next.connect(details.serverUrl, details.token);
+        } catch (e) {
+          // "pc connection" means LiveKit answered but the audio path to it failed.
+          throw new Error(/pc connection/i.test(e.message)
+            ? `Reached LiveKit at ${details.serverUrl}, but the audio connection failed. A VPN, or a network change since the server started, can cause this. Restart it with livekit-server --dev --config web/livekit.yaml.`
+            : `Couldn't connect to LiveKit at ${details.serverUrl} (${e.message}). Check that livekit-server is running.`);
+        }
+        room = next;
+      } catch (e) {
+        setState('off', 'Not connected');
+        report(e.message);
+        $('start').disabled = $('restart').disabled = false;
+        return;
+      }
+
+      $('intro').hidden = true;
+      timeline.hidden = false;
+      $('restart').disabled = false;
+      sessionControls(true);
+      note(`Joined room ${room.name}.`);
+      await room.startAudio();
+      showAudioPrompt();
+
+      const agent = [...room.remoteParticipants.values()].find((p) => p.isAgent);
+      if (agent) {
+        onAgentJoined(agent);
+      } else {
+        setState('waiting', 'Waiting for the agent');
+        agentTimer = setTimeout(() => note(
+          'The agent hasn\'t joined yet. Check that uv run python src/agent.py dev is running against the same LiveKit server.',
+          true,
+        ), 15000);
+      }
+      enableMic();
+    }
+
+    async function send(text) {
+      text = text.trim();
+      if (!text || !room) return;
+      addTurn('user', text);
+      try {
+        await room.localParticipant.sendText(text, { topic: 'lk.chat' });
+      } catch (e) {
+        note(`Couldn't send the message (${e.message}).`, true);
+      }
+    }
+
+    $('start').onclick = start;
+    $('restart').onclick = start;
+    $('end').onclick = () => room?.disconnect();
+    mic.onclick = async () => {
+      await room.localParticipant.setMicrophoneEnabled(!room.localParticipant.isMicrophoneEnabled);
+      updateMic();
+    };
+    $('ask').onsubmit = (e) => {
+      e.preventDefault();
+      send(input.value);
+      input.value = '';
+    };
+    prompts.forEach((b) => { b.onclick = () => send(b.dataset.prompt); });
+  </script>
+</body>
+</html>

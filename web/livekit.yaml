@@ -1,0 +1,15 @@
+# Local LiveKit server for the web test page:
+#   livekit-server --dev --config web/livekit.yaml
+#
+# Media uses only this machine's loopback address, so a VPN or switching
+# networks after the server starts can't break the browser connection.
+port: 7880
+bind_addresses: ["127.0.0.1"]
+rtc:
+  tcp_port: 7881
+  udp_port: 7882
+  node_ip: 127.0.0.1
+  enable_loopback_candidate: true
+  use_external_ip: false
+  ips:
+    includes: ["127.0.0.1/8"]
