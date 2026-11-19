@@ -2,7 +2,8 @@
 
 The page in web/index.html listens on TOPIC. Speech transcripts already reach it
 through LiveKit's built-in lk.transcription stream, so only tool activity and
-errors are sent here.
+errors are sent here. A tool_ended event also lists the images a tool such as
+page_images found, since the output preview can cut them off.
 """
 
 from __future__ import annotations
@@ -21,11 +22,14 @@ from livekit.agents import (
     ToolExecutionUpdatedEvent,
 )
 
+from page_images import MAX_IMAGES
+
 logger = logging.getLogger("agent.web")
 
 TOPIC = "parallel.events"
 # Data packets have a size limit, and the page only needs a preview of each result.
 MAX_OUTPUT_CHARS = 2000
+IMAGE_FIELDS = ("n", "src", "alt", "caption", "context")
 
 
 class ToolEventPublisher:
@@ -49,27 +53,29 @@ class ToolEventPublisher:
                 "type": "tool_started",
                 "id": call.call_id,
                 "name": call.name,
-                "arguments": _parse_arguments(call.arguments),
+                "arguments": _parse_json(call.arguments),
             }
         )
 
     def _on_function_tools_executed(self, ev: FunctionToolsExecutedEvent) -> None:
         for call, output in ev.zipped():
             started = self._started.pop(call.call_id, None)
-            self._send(
-                {
-                    "type": "tool_ended",
-                    "id": call.call_id,
-                    "name": call.name,
-                    "arguments": _parse_arguments(call.arguments),
-                    "is_error": output.is_error,
-                    "output": output.output[:MAX_OUTPUT_CHARS],
-                    "truncated": len(output.output) > MAX_OUTPUT_CHARS,
-                    "seconds": None
-                    if started is None
-                    else round(time.monotonic() - started, 2),
-                }
-            )
+            event = {
+                "type": "tool_ended",
+                "id": call.call_id,
+                "name": call.name,
+                "arguments": _parse_json(call.arguments),
+                "is_error": output.is_error,
+                "output": output.output[:MAX_OUTPUT_CHARS],
+                "truncated": len(output.output) > MAX_OUTPUT_CHARS,
+                "seconds": None
+                if started is None
+                else round(time.monotonic() - started, 2),
+            }
+            images = _parse_images(output.output)
+            if images is not None:
+                event["images"] = images
+            self._send(event)
 
     def _on_error(self, ev: ErrorEvent) -> None:
         # Plugin errors wrap the underlying exception, which has the useful message.
@@ -99,8 +105,19 @@ class ToolEventPublisher:
             logger.warning("could not send %s to the web page", event["type"])
 
 
-def _parse_arguments(arguments: str) -> Any:
+def _parse_json(text: str) -> Any:
     try:
-        return json.loads(arguments)
+        return json.loads(text)
     except ValueError:
-        return arguments
+        return text
+
+
+def _parse_images(output: str) -> list[dict[str, Any]] | None:
+    result = _parse_json(output)
+    if not isinstance(result, dict) or not isinstance(result.get("images"), list):
+        return None
+    images = [image for image in result["images"] if isinstance(image, dict)]
+    return [
+        {field: image.get(field) for field in IMAGE_FIELDS}
+        for image in images[:MAX_IMAGES]
+    ]

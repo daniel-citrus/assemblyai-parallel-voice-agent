@@ -5,6 +5,7 @@ description = "Starter for LiveKit voice agents that search the live web with Pa
 readme = "README.md"
 requires-python = ">=3.10, <3.14"
 dependencies = [
+    "httpx>=0.28",
     "livekit-agents[assemblyai,mcp,openai,silero]~=1.8",
     "livekit-plugins-assemblyai-tts",
     "parallel-web>=1.3",

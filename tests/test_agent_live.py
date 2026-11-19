@@ -1,4 +1,4 @@
-"""Live text turns through AssemblyAI and the hosted Parallel MCP server."""
+"""Live text turns through AssemblyAI, the hosted Parallel MCP server and the web."""
 
 import os
 
@@ -51,3 +51,16 @@ async def test_voice_tools_in_one_conversation():
                 .event()
                 .item.text_content
             )
+
+        result = await session.run(
+            user_input="Describe the main photo on the Wikipedia article about "
+            "the Golden Gate Bridge."
+        )
+        result.expect.contains_function_call(name="page_images")
+        reply = " ".join(
+            event.item.text_content or ""
+            for event in result.events
+            if event.type == "message" and event.item.role == "assistant"
+        ).lower()
+        assert "bridge" in reply
+        assert "i can see" not in reply
