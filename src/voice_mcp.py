@@ -6,7 +6,8 @@ from typing import Any
 
 from livekit.agents import RunContext, function_tool, mcp
 
-# What the agent says when a lookup takes more than a second.
+# What the agent says when a lookup takes more than a second. web/index.html
+# tells these from real replies because each starts with "One sec".
 ACKNOWLEDGMENTS = {
     "web_search": "One sec, I'm searching the web.",
     "web_fetch": "One sec, I'm reading the page.",

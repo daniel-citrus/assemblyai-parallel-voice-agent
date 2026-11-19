@@ -120,6 +120,13 @@
     .image-text { grid-column: 2; font-size: 0.9375rem; }
     .image-text p { margin: 0 0 0.2rem; max-width: 60ch; overflow-wrap: anywhere; }
     .image-label { font-weight: 600; color: var(--muted); }
+    .image-card { align-self: start; margin: 0; max-width: 32rem; overflow: hidden; background: var(--surface); border: 1px solid var(--line); border-radius: 0.75rem; animation: pop-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1); transform-origin: left top; }
+    /* Sized by width, not by the image, so the conversation doesn't jump when it loads. */
+    .image-card img { display: block; width: 100%; aspect-ratio: 3 / 2; max-height: min(18rem, 45vh); object-fit: contain; background: var(--bg); border-bottom: 1px solid var(--line); }
+    .image-card figcaption { display: grid; gap: 0.4rem; padding: 0.75rem 1rem 0.9rem; }
+    .image-source { margin: 0; font-size: 0.875rem; color: var(--muted); }
+    @keyframes pop-in { from { opacity: 0; transform: scale(0.97) translateY(0.25rem); } }
+    @media (prefers-reduced-motion: reduce) { .image-card { animation: none; } }
 
     .tray { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.6rem; padding-block: 0.75rem 1rem; }
     .prompts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
@@ -223,6 +230,9 @@
       listening: ['listening'], thinking: ['thinking'], speaking: ['speaking'],
     };
     const COUNT_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'];
+    // Every slow-lookup filler in src/voice_mcp.py starts with this. A filler can
+    // start playing after its tool returns, so it mustn't take the image's card.
+    const FILLER_START = 'One sec';
 
     // The figure is an owl on a branch in the left 16 columns, with each scene's
     // prop in the 12 columns to its right. A scene draws its props frame by frame,
@@ -346,6 +356,7 @@
     const segments = new Map();  // transcript segment id -> <p>
     const toolCalls = new Map(); // tool call id -> timeline entry
     const running = new Map();   // tool call id -> tool name, in the order they started
+    let pendingImage = null;     // page_images' main image, until the agent's next reply describes it
 
     // What the figure shows: an error until the agent works again, else the
     // tool that started last, else the connection or lk.agent.state.
@@ -545,18 +556,26 @@
       return { li, time, resultHeading, result };
     }
 
+    function imageElement(image, src) {
+      // The policy and lazy loading are set before src, so the request goes out with them.
+      const img = Object.assign(document.createElement('img'), {
+        referrerPolicy: 'no-referrer', loading: 'lazy', decoding: 'async',
+        alt: image.alt || image.caption || 'No description on the page', src: src.href,
+      });
+      img.onerror = () => { img.hidden = true; };
+      return img;
+    }
+
+    function pageLink(page) {
+      const link = Object.assign(document.createElement('a'), { href: page.href, target: '_blank', rel: 'noopener noreferrer', textContent: site(page.href) });
+      link.append(Object.assign(document.createElement('span'), { className: 'visually-hidden', textContent: ' (opens in a new tab)' }));
+      return link;
+    }
+
     function imageItem(image, page) {
       const li = Object.assign(document.createElement('li'), { className: 'image' });
       const src = webUrl(image.src);
-      if (src) {
-        // The policy and lazy loading are set before src, so the request goes out with them.
-        const img = Object.assign(document.createElement('img'), {
-          referrerPolicy: 'no-referrer', loading: 'lazy', decoding: 'async',
-          alt: image.alt || image.caption || 'No description on the page', src: src.href,
-        });
-        img.onerror = () => { img.hidden = true; };
-        li.append(img);
-      }
+      if (src) li.append(imageElement(image, src));
       const text = Object.assign(document.createElement('div'), { className: 'image-text' });
       for (const [label, value] of [['Alt text', image.alt], ['Caption', image.caption], ['Nearby text', image.context]]) {
         if (!value) continue;
@@ -567,13 +586,40 @@
       if (!image.alt && !image.caption) {
         text.prepend(Object.assign(document.createElement('p'), { className: 'image-label', textContent: 'No description on the page' }));
       }
-      if (page) {
-        const link = Object.assign(document.createElement('a'), { href: page.href, target: '_blank', rel: 'noopener noreferrer', textContent: site(page.href) });
-        link.append(Object.assign(document.createElement('span'), { className: 'visually-hidden', textContent: ' (opens in a new tab)' }));
-        text.append(link);
-      }
+      if (page) text.append(pageLink(page));
       li.append(text);
       return li;
+    }
+
+    // Segments that already exist can't claim the image: they started before it was found.
+    function mainImage(ev) {
+      const image = Array.isArray(ev.images) ? ev.images[0] : null;
+      const src = webUrl(image?.src);
+      return src ? { image, src, page: webUrl(ev.arguments?.url), before: new Set(segments.values()) } : null;
+    }
+
+    // Wraps the agent's reply in a card with the image above it.
+    function showImage(p, { image, src, page }) {
+      const figure = Object.assign(document.createElement('figure'), { className: 'image-card' });
+      const caption = document.createElement('figcaption');
+      p.replaceWith(figure);
+      caption.append(p);
+      if (page) {
+        const from = Object.assign(document.createElement('p'), { className: 'image-source', textContent: 'Image from ' });
+        from.append(pageLink(page));
+        caption.append(from);
+      }
+      figure.append(imageElement(image, src), caption);
+    }
+
+    // The agent's first reply after page_images, other than a filler, describes the main image.
+    function claimImage(p, text, done = false) {
+      text = text.trimStart();
+      if (!pendingImage || !text || pendingImage.before.has(p)) return;
+      if (!done && FILLER_START.startsWith(text)) return; // too short to tell yet
+      if (text.startsWith(FILLER_START)) return;
+      showImage(p, pendingImage);
+      pendingImage = null;
     }
 
     function addImages(call, ev) {
@@ -596,6 +642,7 @@
       call.resultHeading.textContent = ev.truncated ? 'Result (first 2,000 characters)' : 'Result';
       call.result.textContent = pretty(ev.output);
       if (Array.isArray(ev.images)) addImages(call, ev);
+      if (ev.name === 'page_images') pendingImage = mainImage(ev);
     }
 
     function onAgentEvent(ev) {
@@ -637,15 +684,20 @@
       if (!p) {
         p = addTurn(fromYou ? 'user' : 'agent');
         segments.set(id, p);
+        if (fromYou) pendingImage = null;
       }
       p.classList.toggle('interim', fromYou && attributes['lk.transcription_final'] !== 'true');
       let text = '';
       for await (const chunk of reader) {
         text += chunk;
-        follow(() => { p.textContent = text; });
+        follow(() => {
+          p.textContent = text;
+          if (!fromYou) claimImage(p, text);
+        });
       }
+      if (!fromYou) follow(() => claimImage(p, text, true));
       if (!p.textContent) {
-        p.parentElement.remove();
+        p.closest('li').remove();
         segments.delete(id);
       }
     }
@@ -697,6 +749,7 @@
       clearTimeout(agentTimer);
       agent = null;
       running.clear();
+      pendingImage = null;
       fault = null;
       setBase('ended');
       note('Session ended.', { spoken: true });
@@ -790,6 +843,7 @@
         return false;
       }
       addTurn('user', text);
+      pendingImage = null;
       room.localParticipant.sendText(text, { topic: 'lk.chat' })
         .catch((e) => note(`Couldn't send the message (${e.message}).`, { error: true }));
       return true;

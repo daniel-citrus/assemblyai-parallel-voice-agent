@@ -5,7 +5,11 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from livekit.agents import RunContext, function_tool
 
-from voice_mcp import with_spoken_acknowledgment
+from voice_mcp import (
+    ACKNOWLEDGMENTS,
+    DEFAULT_ACKNOWLEDGMENT,
+    with_spoken_acknowledgment,
+)
 
 
 async def run_lookup(name, slow):
@@ -60,3 +64,10 @@ async def test_fast_lookup_says_nothing():
     session = await run_lookup("web_search", slow=False)
 
     session.say.assert_not_called()
+
+
+def test_every_acknowledgment_starts_the_way_the_page_expects():
+    # web/index.html skips these when it pairs an image with the agent's description.
+    phrases = [*ACKNOWLEDGMENTS.values(), DEFAULT_ACKNOWLEDGMENT]
+
+    assert all(phrase.startswith("One sec") for phrase in phrases)

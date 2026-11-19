@@ -39,7 +39,7 @@ Watch the tool names in the terminal. The agent chooses when to call each one. F
 
 ## Watch it in the browser
 
-The page in [web/](web/index.html) shows what the agent is doing and every tool call, and it lists the images the agent found with their text. Screen readers announce tool activity and errors, and every control works from the keyboard. It needs a local LiveKit server (on macOS, `brew install livekit`). Run each command in its own terminal from the repo folder. The config keeps audio on localhost, so a VPN or switching Wi-Fi doesn't break the connection.
+The page in [web/](web/index.html) shows what the agent is doing and every tool call, and it lists the images the agent found with their text. When the agent describes a picture, its reply appears as a card with the page's main image above the description. Screen readers announce tool activity and errors, and every control works from the keyboard. It needs a local LiveKit server (on macOS, `brew install livekit`). Run each command in its own terminal from the repo folder. The config keeps audio on localhost, so a VPN or switching Wi-Fi doesn't break the connection.
 
 ```sh
 livekit-server --dev --config web/livekit.yaml
