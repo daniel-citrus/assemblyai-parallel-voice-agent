@@ -47,7 +47,7 @@ uv run python src/agent.py dev
 uv run python web/server.py
 ```
 
-Open http://localhost:8090, select **Start session**, and allow microphone access. You can also type, or use the example buttons.
+Open http://localhost:8090, select **Start session**, and allow microphone access. Then speak, or type in the message box.
 
 ## Make it yours
 
