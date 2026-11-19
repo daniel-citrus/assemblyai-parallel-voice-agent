@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Voice agent test page</title>
+  <title>Parallel voice agent</title>
   <link rel="icon" href="data:,">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,9 +17,10 @@
       --muted: #5a6573;
       --line: #d3d9e0;
       --search: #2459c9;
-      --fetch: #13806a;
+      --fetch: #107863;
       --decisions: #8040c0;
-      --thinking: #a2660f;
+      --images: #b4316f;
+      --thinking: #965e0d;
       --danger: #b3261e;
       --sans: "Atkinson Hyperlegible Next", system-ui, sans-serif;
       --mono: "Atkinson Hyperlegible Mono", ui-monospace, monospace;
@@ -34,6 +35,7 @@
         --search: #82a8f5;
         --fetch: #52c3a7;
         --decisions: #bd90ec;
+        --images: #f08cbe;
         --thinking: #e3ab4f;
         --danger: #f2827a;
       }
@@ -43,6 +45,7 @@
     html, body { height: 100%; margin: 0; }
     body { background: var(--bg); color: var(--ink); font: 400 1rem/1.5 var(--sans); }
     code { font-family: var(--mono); font-size: 0.875em; }
+    a { color: inherit; }
     :focus-visible { outline: 3px solid var(--search); outline-offset: 2px; }
     [hidden] { display: none !important; }
 
@@ -52,29 +55,40 @@
     header { border-bottom: 1px solid var(--line); }
     footer { border-top: 1px solid var(--line); }
 
-    .bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem 1rem; padding-block: 0.875rem; }
-    .title { margin: 0; font-size: 0.875rem; font-weight: 600; color: var(--muted); }
-    .state { margin: 0; display: flex; align-items: center; gap: 0.6rem; font-size: 1.75rem; font-weight: 700; line-height: 1.15; letter-spacing: -0.01em; }
-    .dot { flex: none; width: 0.75rem; height: 0.75rem; border-radius: 50%; border: 2px solid var(--muted); }
-    [data-state="listening"] .dot { border-color: var(--ink); }
-    [data-state="thinking"] .dot { border-color: var(--thinking); background: var(--thinking); }
-    [data-state="speaking"] .dot { border-color: var(--ink); background: var(--ink); animation: pulse 1.2s ease-in-out infinite; }
-    @keyframes pulse { 50% { transform: scale(1.4); } }
-    @media (prefers-reduced-motion: reduce) { [data-state="speaking"] .dot { animation: none; } }
+    .bar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "figure heading controls"; align-items: center; gap: 0.75rem 1.25rem; padding-block: 1rem; }
+    .figure {
+      grid-area: figure; box-sizing: content-box; margin: 0; padding: 0.5em 0.75em;
+      /* 28 columns of Atkinson Hyperlegible Mono and 10 rows, so the box keeps its size while the font loads */
+      width: 17.7em; height: 12em; overflow: hidden;
+      font: 0.875rem/1.2 var(--mono); white-space: pre;
+      background: var(--surface); border: 1px solid var(--line); border-radius: 0.75rem;
+      color: var(--scene, var(--muted)); transition: color 200ms ease;
+    }
+    .figure[data-scene="listening"], .figure[data-scene="speaking"] { --scene: var(--ink); }
+    .figure[data-scene="thinking"] { --scene: var(--thinking); }
+    .figure[data-scene="searching"] { --scene: var(--search); }
+    .figure[data-scene="reading"] { --scene: var(--fetch); }
+    .figure[data-scene="deciding"] { --scene: var(--decisions); }
+    .figure[data-scene="images"] { --scene: var(--images); }
+    .figure[data-scene="error"] { --scene: var(--danger); }
+    .heading { grid-area: heading; }
+    .title { margin: 0; font-size: 0.9375rem; font-weight: 600; color: var(--muted); }
+    .state { margin: 0.1rem 0 0; font-size: 2rem; font-weight: 700; line-height: 1.15; letter-spacing: -0.01em; overflow-wrap: break-word; }
 
-    .controls { display: flex; gap: 0.5rem; }
+    .controls { grid-area: controls; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .controls:not(:has(> :not([hidden]))) { display: none; }
     button { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 0.5rem; padding: 0.5rem 0.9rem; cursor: pointer; }
     button:disabled { cursor: not-allowed; opacity: 0.5; }
     .primary { background: var(--ink); border-color: var(--ink); color: var(--bg); font-weight: 600; }
     .mic.hearing { box-shadow: 0 0 0 2px var(--ink); }
 
     main { overflow-y: auto; }
-    .intro { max-width: 34rem; padding-block: 3rem; }
+    .intro { max-width: 34rem; padding-block: 2.5rem 3rem; }
     .intro h2 { margin: 0 0 0.5rem; font-size: 1.5rem; line-height: 1.2; }
     .intro p { margin: 0 0 1.25rem; color: var(--muted); }
     .intro ol { margin: 0 0 1.5rem; padding-left: 1.25rem; color: var(--muted); }
     .intro li + li { margin-top: 0.25rem; }
-    .intro .problem { color: var(--danger); }
+    .intro .problem { margin-top: 1rem; color: var(--danger); }
 
     .timeline { list-style: none; margin: 0; padding: 1.25rem 0 2rem; display: flex; flex-direction: column; gap: 0.9rem; }
     .turn { display: grid; grid-template-columns: 4rem minmax(0, 1fr); gap: 0.1rem 1rem; align-items: baseline; }
@@ -88,15 +102,24 @@
     [data-tool="search"] { --tool: var(--search); }
     [data-tool="fetch"] { --tool: var(--fetch); }
     [data-tool="decisions"] { --tool: var(--decisions); }
+    [data-tool="images"] { --tool: var(--images); }
     [data-tool="other"] { --tool: var(--muted); }
     .tool details { border-left: 3px solid var(--tool); padding-left: 0.75rem; }
     .tool summary { cursor: pointer; }
     .tool-name { font-weight: 700; color: var(--tool); }
-    .tool-what { margin-left: 0.4rem; overflow-wrap: anywhere; }
-    .tool-time { margin-left: 0.4rem; font-size: 0.875rem; color: var(--muted); white-space: nowrap; }
+    .tool-what { overflow-wrap: anywhere; }
+    .tool-time { font-size: 0.875rem; color: var(--muted); white-space: nowrap; }
     .failed .tool-time { color: var(--danger); }
     .tool h3 { margin: 0.75rem 0 0.25rem; font-size: 0.875rem; font-weight: 600; color: var(--muted); }
     pre { margin: 0; max-height: 20rem; overflow: auto; padding: 0.75rem; background: var(--surface); border: 1px solid var(--line); border-radius: 0.5rem; font: 0.8125rem/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+    .images { grid-column: -2 / -1; list-style: none; margin: 0.5rem 0 0; padding: 0 0 0 0.75rem; border-left: 3px solid var(--tool); display: grid; gap: 0.9rem; }
+    .images-none { grid-column: -2 / -1; margin: 0.5rem 0 0; padding-left: 0.75rem; border-left: 3px solid var(--tool); color: var(--muted); }
+    .image { display: grid; grid-template-columns: 6rem minmax(0, 1fr); align-items: start; gap: 0.75rem; }
+    .image img { width: 6rem; height: 4.5rem; object-fit: cover; background: var(--surface); border: 1px solid var(--line); border-radius: 0.375rem; }
+    .image-text { grid-column: 2; font-size: 0.9375rem; }
+    .image-text p { margin: 0 0 0.2rem; max-width: 60ch; overflow-wrap: anywhere; }
+    .image-label { font-weight: 600; color: var(--muted); }
 
     .tray { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.6rem; padding-block: 0.75rem 1rem; }
     .prompts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
@@ -107,10 +130,21 @@
     .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
     @media (max-width: 40rem) {
-      .state { font-size: 1.4rem; }
+      .bar { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "figure heading" "controls controls"; gap: 0.6rem 0.9rem; padding-block: 0.75rem; }
+      .figure { font-size: 0.6875rem; padding: 0.4em 0.6em; }
+      .title { font-size: 0.875rem; }
+      .state { font-size: 1.375rem; }
       .turn { grid-template-columns: minmax(0, 1fr); }
       .turn.note .who, .turn.tool .who { display: none; }
       .prompts { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 80%; overflow-x: auto; padding-bottom: 0.25rem; }
+    }
+    @media (max-width: 21rem) {
+      .bar { grid-template-columns: minmax(0, 1fr); grid-template-areas: "figure" "heading" "controls"; }
+    }
+    /* When zoomed in or on a short screen, the page scrolls as a whole so the conversation never collapses. */
+    @media (max-height: 32rem) {
+      .app { height: auto; min-height: 100dvh; }
+      main { overflow-y: visible; }
     }
   </style>
 </head>
@@ -118,9 +152,10 @@
   <div class="app">
     <header>
       <div class="column bar">
-        <div>
+        <pre class="figure" id="figure" aria-hidden="true"></pre>
+        <div class="heading">
           <h1 class="title">Parallel voice agent</h1>
-          <p class="state" id="state" data-state="off" role="status"><span class="dot"></span><span id="state-word">Not connected</span></p>
+          <p class="state" id="state-word">Not connected</p>
         </div>
         <div class="controls">
           <button class="mic" id="mic" hidden>Mute mic</button>
@@ -133,34 +168,38 @@
     <main id="main">
       <div class="column">
         <section class="intro" id="intro">
-          <h2>Talk to the agent and watch its lookups</h2>
-          <p>Start a session, then speak or type. Each Search, Fetch, or Decisions call appears in the conversation with the arguments the agent sent and what came back.</p>
+          <h2>Search the web by voice</h2>
+          <p>Start a session, then ask a question out loud or type it. The agent answers first, names its sources, and describes a page's pictures from the alt text and captions the page gives them. Each lookup appears in the conversation, and screen readers hear what the agent is looking up.</p>
           <ol>
             <li>Run <code>livekit-server --dev --config web/livekit.yaml</code></li>
             <li>Run <code>uv run python src/agent.py dev</code></li>
           </ol>
-          <button class="primary" id="start">Start session</button>
-          <p class="problem" id="problem" role="alert"></p>
+          <button class="primary" id="start" autofocus>Start session</button>
+          <p class="problem" id="problem"></p>
         </section>
-        <ol class="timeline" id="timeline" hidden></ol>
+        <section id="conversation" aria-labelledby="conversation-title" hidden>
+          <h2 class="visually-hidden" id="conversation-title">Conversation</h2>
+          <ol class="timeline" id="timeline"></ol>
+        </section>
       </div>
     </main>
 
-    <footer>
+    <footer id="tray" hidden>
       <div class="column tray">
         <div class="prompts">
-          <button class="prompt" data-tool="search" data-prompt="What changed in the latest stable Python release?" disabled><b>Search</b>What changed in the latest stable Python release?</button>
-          <button class="prompt" data-tool="fetch" data-prompt="Read the release notes you just cited. What do they say about upgrading?" disabled><b>Fetch</b>Read the release notes you just cited. What do they say about upgrading?</button>
-          <button class="prompt" data-tool="decisions" data-prompt="How likely is it that Python 3.13 offers a free-threaded build? Give me a probability." disabled><b>Decisions</b>How likely is it that Python 3.13 offers a free-threaded build? Give me a probability.</button>
+          <button class="prompt" data-tool="search" data-prompt="What changed in the latest stable Python release?"><b>Search</b> What changed in the latest stable Python release?</button>
+          <button class="prompt" data-tool="images" data-prompt="Describe the pictures on the Wikipedia article about the Golden Gate Bridge."><b>Images</b> Describe the pictures on the Wikipedia article about the Golden Gate Bridge.</button>
+          <button class="prompt" data-tool="decisions" data-prompt="How likely is it that Python 3.13 offers a free-threaded build? Give me a probability."><b>Decisions</b> How likely is it that Python 3.13 offers a free-threaded build? Give me a probability.</button>
         </div>
-        <form id="ask">
-          <label class="visually-hidden" for="message">Message</label>
-          <input id="message" autocomplete="off" placeholder="Type a question" disabled>
-          <button class="primary" disabled>Send</button>
+        <form id="ask" aria-label="Ask the agent">
+          <label class="visually-hidden" for="message">Question</label>
+          <input id="message" autocomplete="off" placeholder="Type a question">
+          <button class="primary">Send</button>
         </form>
       </div>
     </footer>
   </div>
+  <div id="announcer" class="visually-hidden" aria-live="polite"></div>
   <div id="audio" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.23.0/dist/livekit-client.umd.js"
@@ -173,41 +212,258 @@
     const EVENTS_TOPIC = 'parallel.events';
     const STATE_ATTRIBUTE = 'lk.agent.state';
     const TOOLS = {
-      web_search: { label: 'Search', kind: 'search' },
-      web_fetch: { label: 'Fetch', kind: 'fetch' },
-      web_decisions: { label: 'Decisions', kind: 'decisions' },
+      web_search: { label: 'Search', kind: 'search', scene: 'searching' },
+      web_fetch: { label: 'Fetch', kind: 'fetch', scene: 'reading' },
+      web_decisions: { label: 'Decisions', kind: 'decisions', scene: 'deciding' },
+      page_images: { label: 'Images', kind: 'images', scene: 'images' },
     };
-    const STATE_WORDS = {
-      initializing: 'Starting', idle: 'Idle', listening: 'Listening',
-      thinking: 'Thinking', speaking: 'Speaking',
+    // lk.agent.state value -> [scene, state word when it differs from the scene's].
+    const AGENT_STATES = {
+      initializing: ['waiting', 'Starting'], idle: ['listening', 'Idle'],
+      listening: ['listening'], thinking: ['thinking'], speaking: ['speaking'],
     };
+    const COUNT_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'];
+
+    // The figure is an owl on a branch in the left 16 columns, with each scene's
+    // prop in the 12 columns to its right. A scene draws its props frame by frame,
+    // separated by '#', and sets the owl's eyes and beak once or per frame. The
+    // last frame is the still one shown under reduced motion.
+    const FIGURE_COLS = 28, PROP_COLS = 12;
+    const OWL = String.raw`
+   /\     /\
+  /  '---'  \
+ | .-.   .-. |
+ |EEEEEEEEEEE|
+ | '-' B '-' |
+ |  \\\ ///  |
+  \  \\ //  /
+   '-.___.-'
+     m   m
+ =============`.split('\n').slice(1);
+    const EYES = {
+      ahead: '( o ) ( o )', right: '(  o) (  o)', left: '(o  ) (o  )',
+      up: "(  ') (  ')", shut: '( - ) ( - )', wide: '( O ) ( O )',
+    };
+    const SCENES = {
+      listening: { word: 'Listening', ms: 550, eyes: EYES.right, art: String.raw`
+#
+#
+   (   (   (#  (   (   ( # (   (   (  #    (   (
+  (   (   ( # (   (   (  #(   (   (   #   (   (   (
+   (   (   (#  (   (   ( # (   (   (  #    (   (` },
+      thinking: { word: 'Thinking', ms: 600, eyes: EYES.up, art: String.raw`
+            #            #     .---.  #     .---.
+            #            #    (  .  ) #    ( . . )
+            #     o      #   o '---'  #   o '---'
+  .         #  .         #  .         #  .` },
+      // Ordered from a closed beak to a wide one, so the audio level can pick a frame.
+      speaking: { word: 'Speaking', ms: 250, eyes: EYES.ahead, beak: ['v', 'o', 'o', 'O'], art: String.raw`
+#
+#
+            # )          # )   )     # )   )   )
+            #  )         #  )   )    #  )   )   )
+            # )          # )   )     # )   )   )` },
+      searching: { word: 'Searching', ms: 450, eyes: EYES.right, art: String.raw`
+#
+#
+ .--.       #    .--.    #       .--. #    .--.
+( ~~ )======#===( ~~ )===#======( ~~ )#===( ~~ )===
+ '--'\      #    '--'\   #       '--'\#    '--'\
+      \     #         \  #            #         \
+
+ ===== ==== # ===== ==== # ===== ==== # ===== ====
+ === ====== # === ====== # === ====== # === ======` },
+      reading: { word: 'Reading', ms: 600, eyes: [EYES.ahead, EYES.right], art: String.raw`
+#
+  .--------.#  .--------.#  .--------.#  .--------.
+> | ====== |#  | ====== |#  | ====== |#  | ====== |
+  | === == |#> | === == |#  | === == |#  | === == |
+  | ==== = |#  | ==== = |#> | ==== = |#  | ==== = |
+  | == === |#  | == === |#  | == === |#> | == === |
+  '--------'#  '--------'#  '--------'#  '--------'` },
+      deciding: { word: 'Deciding', ms: 650, eyes: EYES.right, art: String.raw`
+#
+  .-----.   #  .-----.   #  .-----.   #  .-----.
+ / \     \  # /   |   \  # /     / \  # /   |   \
+|   \     | #|    |    | #|     /   | #|    |    |
+|    o    | #|    o    | #|    o    | #|    o    |
+'---------' #'---------' #'---------' #'---------'` },
+      images: { word: 'Looking at images', ms: 500, eyes: EYES.right, art: String.raw`
+#
+ +--------+ # +--------+ # +--------+ # +--------+
+ |o   /\  | # |o   /\  | # |o   /\  | # |o   /\  |
+ | /\/  \ | # | /\/  \ | # | /\/  \ | # | /\/  \ |
+ |/  \   \| # |/  \   \| # |/  \   \| # |/  \   \|
+ +--------+ # +--------+ # +--------+ # +--------+
+ ~~~        # ~~~~~~     # ~~~~~~~~~~ # ~~~~~~~~~~
+            #            #            # ~~~~~` },
+      connecting: { word: 'Connecting', ms: 400, eyes: EYES.right, art: String.raw`
+            #            #            #          []
+            #            #       []   #       [] []
+            #    []      #    [] []   #    [] [] []
+ []         # [] []      # [] [] []   # [] [] [] []` },
+      waiting: { word: 'Waiting for the agent', ms: 600, eyes: [EYES.left, EYES.ahead, EYES.right, EYES.ahead], art: String.raw`
+#
+   .---.    #   .---.    #   .---.    #   .---.
+  /  |  \   #  /     \   #  /     \   #  /     \
+ |   o   |  # |   o-- |  # |   o   |  # | --o   |
+  \     /   #  \     /   #  \  |  /   #  \     /
+   '---'    #   '---'    #   '---'    #   '---'` },
+      ended: { word: 'Session ended', ms: 800, eyes: EYES.shut, art: String.raw`
+            #            #            #     Z
+            #            #
+            #            #   z        #   z
+            #            #
+            # z          # z          # z` },
+      error: { word: 'Something went wrong', ms: 900, eyes: [EYES.ahead, EYES.wide], art: String.raw`
+#
+   .---.    #   .---.
+   | ! |    #   | ! |
+   '---'    #   '---'` },
+    };
+
+    function drawScene({ art, eyes, beak = 'v' }) {
+      const props = art.split('\n').slice(1).map((line) => line.split('#'));
+      const count = Math.max(...props.map((row) => row.length));
+      const pick = (value, f) => (Array.isArray(value) ? value[f % value.length] : value);
+      return Array.from({ length: count }, (_, f) => OWL.map((row, r) => (
+        row.replace('EEEEEEEEEEE', pick(eyes, f)).replace('B', pick(beak, f)).padEnd(FIGURE_COLS - PROP_COLS)
+        + (props[r]?.[f] ?? '')
+      ).padEnd(FIGURE_COLS).slice(0, FIGURE_COLS)).join('\n'));
+    }
+    const FRAMES = Object.fromEntries(Object.entries(SCENES).map(([name, scene]) => [name, drawScene(scene)]));
 
     const $ = (id) => document.getElementById(id);
     const main = $('main'), timeline = $('timeline'), input = $('message'), mic = $('mic');
-    const sendButton = $('ask').querySelector('button');
+    const figure = $('figure'), announcer = $('announcer');
     const prompts = document.querySelectorAll('.prompt');
+    const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
     const decoder = new TextDecoder();
 
     let room = null;
+    let agent = null;
     let agentTimer = null;
     const segments = new Map();  // transcript segment id -> <p>
     const toolCalls = new Map(); // tool call id -> timeline entry
+    const running = new Map();   // tool call id -> tool name, in the order they started
 
-    function setState(state, word) {
-      $('state').dataset.state = state;
-      $('state-word').textContent = word ?? STATE_WORDS[state] ?? state;
+    // What the figure shows: an error until the agent works again, else the
+    // tool that started last, else the connection or lk.agent.state.
+    let base = { scene: 'ended', word: 'Not connected' };
+    let fault = null;
+    let shown = null, step = 0, frameTimer = null;
+
+    function currentScene() {
+      if (fault) return { scene: 'error', word: fault };
+      const name = [...running.values()].at(-1);
+      if (name) {
+        const scene = TOOLS[name]?.scene ?? 'thinking';
+        return { scene, word: SCENES[scene].word };
+      }
+      return base;
     }
 
-    function setReady(ready) {
-      input.disabled = sendButton.disabled = !ready;
-      prompts.forEach((b) => { b.disabled = !ready; });
+    function render() {
+      const { scene, word } = currentScene();
+      $('state-word').textContent = word;
+      if (scene === shown) return;
+      shown = scene;
+      step = 0;
+      figure.dataset.scene = scene;
+      animate();
+    }
+
+    function drawFrame() {
+      const frames = FRAMES[shown];
+      let i = step % frames.length;
+      if (reducedMotion.matches) i = frames.length - 1;
+      else if (shown === 'speaking' && agent?.isSpeaking) {
+        i = Math.min(frames.length - 1, Math.floor(Math.sqrt(agent.audioLevel || 0) * frames.length));
+      }
+      figure.textContent = frames[i];
+    }
+
+    function animate() {
+      clearTimeout(frameTimer);
+      drawFrame();
+      if (reducedMotion.matches || document.hidden) return;
+      frameTimer = setTimeout(() => { step += 1; animate(); }, SCENES[shown].ms);
+    }
+
+    function setBase(scene, word = SCENES[scene].word) {
+      base = { scene, word };
+      render();
+    }
+
+    function onAgentState(state) {
+      const [scene, word] = AGENT_STATES[state] ?? ['thinking', state];
+      if (scene === 'thinking' || scene === 'speaking') fault = null;
+      setBase(scene, word);
+    }
+
+    // Short phrases for screen readers. Transcripts never go here: the caller hears them.
+    function announce(text) {
+      const p = document.createElement('p');
+      p.textContent = text;
+      announcer.append(p);
+      while (announcer.childElementCount > 3) announcer.firstElementChild.remove();
+    }
+
+    function webUrl(value) {
+      try {
+        const url = new URL(value);
+        return /^https?:$/.test(url.protocol) ? url : null;
+      } catch {
+        return null;
+      }
+    }
+
+    function site(value) {
+      return webUrl(value)?.hostname.replace(/^www\./, '') ?? 'the page';
+    }
+
+    function clip(text, max = 80) {
+      text = String(text ?? '').trim();
+      return text.length > max ? `${text.slice(0, max).replace(/\s+\S*$/, '')}...` : text;
+    }
+
+    function count(n, noun) {
+      return `${COUNT_WORDS[n] ?? n} ${noun}${n === 1 ? '' : 's'}`;
+    }
+
+    function startPhrase(name, args) {
+      args = args && typeof args === 'object' ? args : {};
+      if (name === 'web_search') return `Searching the web for ${clip(args.search_queries?.[0] ?? args.objective) || 'an answer'}`;
+      if (name === 'web_fetch') {
+        const urls = args.urls ?? [];
+        return `Reading ${site(urls[0])}${urls.length > 1 ? ` and ${count(urls.length - 1, 'other page')}` : ''}`;
+      }
+      if (name === 'web_decisions') return `Deciding on ${clip(Object.values(args.state ?? {}).join(' ')) || 'your question'}`;
+      if (name === 'page_images') return `Looking for images on ${site(args.url)}`;
+      return `Running ${name}`;
+    }
+
+    function endPhrase(ev) {
+      const label = TOOLS[ev.name]?.label ?? ev.name;
+      if (ev.name === 'page_images') {
+        return Array.isArray(ev.images)
+          ? `Found ${count(ev.images.length, 'image')} on ${site(ev.arguments?.url)}`
+          : `Couldn't read images on ${site(ev.arguments?.url)}`;
+      }
+      return ev.is_error ? `${label} failed` : null;
+    }
+
+    // main scrolls on its own unless the screen is too short to give it room.
+    function scroller() {
+      return getComputedStyle(main).overflowY === 'auto' ? main : document.scrollingElement;
     }
 
     // Keeps the newest entry in view unless you've scrolled up to read.
     function follow(change) {
-      const atBottom = main.scrollHeight - main.scrollTop - main.clientHeight < 80;
+      const view = scroller();
+      const atBottom = view.scrollHeight - view.scrollTop - view.clientHeight < 80;
       change();
-      if (atBottom) main.scrollTop = main.scrollHeight;
+      if (atBottom) view.scrollTop = view.scrollHeight;
     }
 
     function entry(className, who = '') {
@@ -229,17 +485,23 @@
       return p;
     }
 
-    function note(text, isError = false) {
+    // Errors, and notes that change what the caller can do, are also announced.
+    function note(text, { error = false, spoken = error } = {}) {
       const span = document.createElement('span');
       span.textContent = text;
-      const li = entry(isError ? 'note error' : 'note');
+      const li = entry(error ? 'note error' : 'note');
       li.append(span);
+      if (spoken) announce(text);
       return span;
     }
 
     function report(text) {
-      if (timeline.hidden) $('problem').textContent = text;
-      else note(text, true);
+      if ($('conversation').hidden) {
+        $('problem').textContent = text;
+        announce(text);
+      } else {
+        note(text, { error: true });
+      }
     }
 
     function pretty(value) {
@@ -259,6 +521,7 @@
           .map(([key, q]) => `${key} (${q?.type ?? 'question'})`).join(', ');
         return [subject, questions].filter(Boolean).join(': ');
       }
+      if (name === 'page_images') return args.url ?? '';
       return '';
     }
 
@@ -271,7 +534,8 @@
       const name = Object.assign(document.createElement('span'), { className: 'tool-name', textContent: tool.label });
       const what = Object.assign(document.createElement('span'), { className: 'tool-what', textContent: summarize(ev.name, ev.arguments) });
       const time = Object.assign(document.createElement('span'), { className: 'tool-time', textContent: 'Running' });
-      summary.append(name, what, time);
+      // Spaces, not margins, so screen readers and line breaks keep the words apart.
+      summary.append(name, ' ', what, ' ', time);
       const argsHeading = Object.assign(document.createElement('h3'), { textContent: 'Arguments' });
       const args = Object.assign(document.createElement('pre'), { textContent: pretty(ev.arguments) });
       const resultHeading = Object.assign(document.createElement('h3'), { textContent: 'Result' });
@@ -281,18 +545,68 @@
       return { li, time, resultHeading, result };
     }
 
+    function imageItem(image, page) {
+      const li = Object.assign(document.createElement('li'), { className: 'image' });
+      const src = webUrl(image.src);
+      if (src) {
+        // The policy and lazy loading are set before src, so the request goes out with them.
+        const img = Object.assign(document.createElement('img'), {
+          referrerPolicy: 'no-referrer', loading: 'lazy', decoding: 'async',
+          alt: image.alt || image.caption || 'No description on the page', src: src.href,
+        });
+        img.onerror = () => { img.hidden = true; };
+        li.append(img);
+      }
+      const text = Object.assign(document.createElement('div'), { className: 'image-text' });
+      for (const [label, value] of [['Alt text', image.alt], ['Caption', image.caption], ['Nearby text', image.context]]) {
+        if (!value) continue;
+        const p = document.createElement('p');
+        p.append(Object.assign(document.createElement('span'), { className: 'image-label', textContent: `${label}: ` }), value);
+        text.append(p);
+      }
+      if (!image.alt && !image.caption) {
+        text.prepend(Object.assign(document.createElement('p'), { className: 'image-label', textContent: 'No description on the page' }));
+      }
+      if (page) {
+        const link = Object.assign(document.createElement('a'), { href: page.href, target: '_blank', rel: 'noopener noreferrer', textContent: site(page.href) });
+        link.append(Object.assign(document.createElement('span'), { className: 'visually-hidden', textContent: ' (opens in a new tab)' }));
+        text.append(link);
+      }
+      li.append(text);
+      return li;
+    }
+
+    function addImages(call, ev) {
+      const page = webUrl(ev.arguments?.url);
+      if (!ev.images.length) {
+        const none = Object.assign(document.createElement('p'), { className: 'images-none', textContent: `No images found on ${site(page?.href)}.` });
+        follow(() => call.li.append(none));
+        return;
+      }
+      const list = Object.assign(document.createElement('ol'), { className: 'images' });
+      list.setAttribute('aria-label', `Images on ${site(page?.href)}`);
+      list.append(...ev.images.map((image) => imageItem(image, page)));
+      follow(() => call.li.append(list));
+    }
+
     function finishToolCall(call, ev) {
       const seconds = ev.seconds == null ? '' : `${ev.seconds.toFixed(1)} s`;
       call.li.classList.toggle('failed', ev.is_error);
       call.time.textContent = ev.is_error ? `Failed ${seconds}`.trim() : seconds || 'Done';
       call.resultHeading.textContent = ev.truncated ? 'Result (first 2,000 characters)' : 'Result';
       call.result.textContent = pretty(ev.output);
+      if (Array.isArray(ev.images)) addImages(call, ev);
     }
 
     function onAgentEvent(ev) {
       if (ev.type === 'error') {
-        if (ev.recoverable) note(`Retrying ${ev.source} after ${ev.message}`);
-        else note(`Agent error from ${ev.source}: ${ev.message}`, true);
+        if (ev.recoverable) {
+          note(`Retrying ${ev.source} after ${ev.message}`, { spoken: true });
+        } else {
+          note(`Agent error from ${ev.source}: ${ev.message}`, { error: true });
+          fault = 'Agent error';
+          render();
+        }
         return;
       }
       let call = toolCalls.get(ev.id);
@@ -300,7 +614,17 @@
         call = addToolCall(ev);
         toolCalls.set(ev.id, call);
       }
-      if (ev.type === 'tool_ended') finishToolCall(call, ev);
+      if (ev.type === 'tool_started') {
+        running.set(ev.id, ev.name);
+        fault = null;
+        announce(startPhrase(ev.name, ev.arguments));
+      } else if (ev.type === 'tool_ended') {
+        running.delete(ev.id);
+        finishToolCall(call, ev);
+        const phrase = endPhrase(ev);
+        if (phrase) announce(phrase);
+      }
+      render();
     }
 
     // The agent streams its speech as text in chunks. Your speech arrives as a
@@ -326,10 +650,18 @@
       }
     }
 
-    function onAgentJoined(agent) {
+    function onAgentJoined(participant) {
       clearTimeout(agentTimer);
-      setReady(true);
-      setState(agent.attributes[STATE_ATTRIBUTE] ?? 'initializing');
+      agent = participant;
+      onAgentState(participant.attributes[STATE_ATTRIBUTE] ?? 'initializing');
+    }
+
+    function onAgentLeft() {
+      agent = null;
+      running.clear();
+      fault = null;
+      setBase('error', 'Agent left');
+      note('The agent left the room. Check the agent terminal for errors.', { error: true });
     }
 
     function updateMic() {
@@ -344,38 +676,42 @@
       } catch (e) {
         mic.disabled = true;
         mic.textContent = 'Mic off';
-        note(`Microphone unavailable (${e.message}). You can still type.`);
+        note(`Microphone unavailable (${e.message}). You can still type.`, { spoken: true });
       }
     }
 
     function showAudioPrompt() {
       if (room.canPlaybackAudio) return;
-      const span = note('Your browser blocked the agent\'s audio.');
+      const span = note('Your browser blocked the agent\'s audio.', { spoken: true });
       const allow = Object.assign(document.createElement('button'), { textContent: 'Play audio' });
       allow.onclick = async () => { await room.startAudio(); allow.remove(); };
       span.append(allow);
     }
 
     function sessionControls(active) {
-      mic.hidden = $('end').hidden = !active;
-      $('restart').hidden = active || timeline.hidden;
+      mic.hidden = $('end').hidden = $('tray').hidden = !active;
+      $('restart').hidden = active || $('conversation').hidden;
     }
 
     function onDisconnected() {
       clearTimeout(agentTimer);
-      setReady(false);
-      setState('off', 'Not connected');
-      note('Session ended.');
+      agent = null;
+      running.clear();
+      fault = null;
+      setBase('ended');
+      note('Session ended.', { spoken: true });
       segments.clear();
       toolCalls.clear();
       room = null;
       sessionControls(false);
+      $('restart').focus();
     }
 
     async function start() {
       $('start').disabled = $('restart').disabled = true;
       $('problem').textContent = '';
-      setState('connecting', 'Connecting');
+      fault = null;
+      setBase('connecting');
       try {
         let details;
         try {
@@ -393,14 +729,9 @@
         next.on(RoomEvent.TrackUnsubscribed, (track) => track.detach().forEach((el) => el.remove()));
         next.on(RoomEvent.AudioPlaybackStatusChanged, showAudioPrompt);
         next.on(RoomEvent.ParticipantConnected, (p) => { if (p.isAgent) onAgentJoined(p); });
-        next.on(RoomEvent.ParticipantDisconnected, (p) => {
-          if (!p.isAgent) return;
-          setReady(false);
-          setState('off', 'Agent left');
-          note('The agent left the room. Check the agent terminal for errors.', true);
-        });
+        next.on(RoomEvent.ParticipantDisconnected, (p) => { if (p.isAgent) onAgentLeft(); });
         next.on(RoomEvent.ParticipantAttributesChanged, (changed, p) => {
-          if (p.isAgent && STATE_ATTRIBUTE in changed) setState(changed[STATE_ATTRIBUTE]);
+          if (p.isAgent && STATE_ATTRIBUTE in changed) onAgentState(changed[STATE_ATTRIBUTE]);
         });
         next.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
           mic.classList.toggle('hearing', speakers.includes(next.localParticipant));
@@ -421,42 +752,47 @@
         }
         room = next;
       } catch (e) {
-        setState('off', 'Not connected');
+        setBase('error', 'Couldn\'t connect');
         report(e.message);
         $('start').disabled = $('restart').disabled = false;
+        ($('intro').hidden ? $('restart') : $('start')).focus();
         return;
       }
 
       $('intro').hidden = true;
-      timeline.hidden = false;
+      $('conversation').hidden = false;
       $('restart').disabled = false;
       sessionControls(true);
+      input.focus();
       note(`Joined room ${room.name}.`);
       await room.startAudio();
       showAudioPrompt();
 
-      const agent = [...room.remoteParticipants.values()].find((p) => p.isAgent);
-      if (agent) {
-        onAgentJoined(agent);
+      const present = [...room.remoteParticipants.values()].find((p) => p.isAgent);
+      if (present) {
+        onAgentJoined(present);
       } else {
-        setState('waiting', 'Waiting for the agent');
+        setBase('waiting');
         agentTimer = setTimeout(() => note(
           'The agent hasn\'t joined yet. Check that uv run python src/agent.py dev is running against the same LiveKit server.',
-          true,
+          { error: true },
         ), 15000);
       }
       enableMic();
     }
 
-    async function send(text) {
+    // Returns whether the text went out, so a message typed too early stays in the box.
+    function send(text) {
       text = text.trim();
-      if (!text || !room) return;
-      addTurn('user', text);
-      try {
-        await room.localParticipant.sendText(text, { topic: 'lk.chat' });
-      } catch (e) {
-        note(`Couldn't send the message (${e.message}).`, true);
+      if (!text || !room) return false;
+      if (!agent) {
+        note('The agent isn\'t in the room, so nothing was sent. Try again once it joins.', { spoken: true });
+        return false;
       }
+      addTurn('user', text);
+      room.localParticipant.sendText(text, { topic: 'lk.chat' })
+        .catch((e) => note(`Couldn't send the message (${e.message}).`, { error: true }));
+      return true;
     }
 
     $('start').onclick = start;
@@ -465,13 +801,16 @@
     mic.onclick = async () => {
       await room.localParticipant.setMicrophoneEnabled(!room.localParticipant.isMicrophoneEnabled);
       updateMic();
+      announce(room.localParticipant.isMicrophoneEnabled ? 'Microphone on' : 'Microphone muted');
     };
     $('ask').onsubmit = (e) => {
       e.preventDefault();
-      send(input.value);
-      input.value = '';
+      if (send(input.value)) input.value = '';
     };
     prompts.forEach((b) => { b.onclick = () => send(b.dataset.prompt); });
+    document.addEventListener('visibilitychange', animate);
+    reducedMotion.addEventListener('change', animate);
+    render();
   </script>
 </body>
 </html>
