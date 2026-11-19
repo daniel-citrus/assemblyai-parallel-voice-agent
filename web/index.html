@@ -82,7 +82,8 @@
     .primary { background: var(--ink); border-color: var(--ink); color: var(--bg); font-weight: 600; }
     .mic.hearing { box-shadow: 0 0 0 2px var(--ink); }
 
-    main { overflow-y: auto; }
+    /* A size container, so the image popup can fit itself to the conversation's height. */
+    main { overflow-y: auto; container-type: size; }
     .intro { max-width: 34rem; padding-block: 2.5rem 3rem; }
     .intro h2 { margin: 0 0 0.5rem; font-size: 1.5rem; line-height: 1.2; }
     .intro p { margin: 0 0 1.25rem; color: var(--muted); }
@@ -113,20 +114,26 @@
     .tool h3 { margin: 0.75rem 0 0.25rem; font-size: 0.875rem; font-weight: 600; color: var(--muted); }
     pre { margin: 0; max-height: 20rem; overflow: auto; padding: 0.75rem; background: var(--surface); border: 1px solid var(--line); border-radius: 0.5rem; font: 0.8125rem/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 
-    .images { grid-column: -2 / -1; list-style: none; margin: 0.5rem 0 0; padding: 0 0 0 0.75rem; border-left: 3px solid var(--tool); display: grid; gap: 0.9rem; }
     .images-none { grid-column: -2 / -1; margin: 0.5rem 0 0; padding-left: 0.75rem; border-left: 3px solid var(--tool); color: var(--muted); }
-    .image { display: grid; grid-template-columns: 6rem minmax(0, 1fr); align-items: start; gap: 0.75rem; }
-    .image img { width: 6rem; height: 4.5rem; object-fit: cover; background: var(--surface); border: 1px solid var(--line); border-radius: 0.375rem; }
-    .image-text { grid-column: 2; font-size: 0.9375rem; }
-    .image-text p { margin: 0 0 0.2rem; max-width: 60ch; overflow-wrap: anywhere; }
-    .image-label { font-weight: 600; color: var(--muted); }
-    .image-card { align-self: start; margin: 0; max-width: 32rem; overflow: hidden; background: var(--surface); border: 1px solid var(--line); border-radius: 0.75rem; animation: pop-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1); transform-origin: left top; }
-    /* Sized by width, not by the image, so the conversation doesn't jump when it loads. */
-    .image-card img { display: block; width: 100%; aspect-ratio: 3 / 2; max-height: min(18rem, 45vh); object-fit: contain; background: var(--bg); border-bottom: 1px solid var(--line); }
-    .image-card figcaption { display: grid; gap: 0.4rem; padding: 0.75rem 1rem 0.9rem; }
+
+    /* Sticks to the bottom of the conversation, so it never covers the header or the tray,
+       and the newest turns stay above it when you're scrolled to the end. */
+    .popup {
+      position: sticky; bottom: 0.5rem; margin: -1.5rem 0 0.5rem;
+      display: flex; flex-direction: column; max-height: calc(100cqh - 1rem); overflow-y: auto;
+      background: var(--surface); border: 1px solid var(--line); border-radius: 0.75rem;
+      box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.3);
+      animation: pop-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1); transform-origin: center bottom;
+    }
+    .popup figure { margin: 0; }
+    /* Sized by width and by the room left for two lines of description, not by the image, so it doesn't jump when it loads. */
+    .popup img { display: block; width: 100%; aspect-ratio: 3 / 2; max-height: max(7rem, min(60vh, 100cqh - 9rem)); object-fit: contain; background: var(--bg); border-bottom: 1px solid var(--line); }
+    .popup figcaption { padding: 0.75rem 1rem 0.5rem; }
+    /* Stays in view when a long description scrolls the popup. */
+    .popup-foot { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; padding: 0.5rem 1rem; background: var(--surface); border-top: 1px solid var(--line); }
     .image-source { margin: 0; font-size: 0.875rem; color: var(--muted); }
     @keyframes pop-in { from { opacity: 0; transform: scale(0.97) translateY(0.25rem); } }
-    @media (prefers-reduced-motion: reduce) { .image-card { animation: none; } }
+    @media (prefers-reduced-motion: reduce) { .popup { animation: none; } }
 
     .tray { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.6rem; padding-block: 0.75rem 1rem; }
     .prompts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
@@ -151,7 +158,7 @@
     /* When zoomed in or on a short screen, the page scrolls as a whole so the conversation never collapses. */
     @media (max-height: 32rem) {
       .app { height: auto; min-height: 100dvh; }
-      main { overflow-y: visible; }
+      main { overflow-y: visible; container-type: normal; }
     }
   </style>
 </head>
@@ -187,6 +194,16 @@
         <section id="conversation" aria-labelledby="conversation-title" hidden>
           <h2 class="visually-hidden" id="conversation-title">Conversation</h2>
           <ol class="timeline" id="timeline"></ol>
+          <section class="popup" id="popup" hidden>
+            <figure>
+              <img alt="">
+              <figcaption><p class="said" id="popup-text"></p></figcaption>
+            </figure>
+            <div class="popup-foot">
+              <p class="image-source" id="popup-source"></p>
+              <button id="popup-close">Close<span class="visually-hidden"> image</span></button>
+            </div>
+          </section>
         </section>
       </div>
     </main>
@@ -231,7 +248,7 @@
     };
     const COUNT_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'];
     // Every slow-lookup filler in src/voice_mcp.py starts with this. A filler can
-    // start playing after its tool returns, so it mustn't take the image's card.
+    // start playing after its tool returns, so it mustn't open the image popup.
     const FILLER_START = 'One sec';
 
     // The figure is an owl on a branch in the left 16 columns, with each scene's
@@ -345,7 +362,7 @@
 
     const $ = (id) => document.getElementById(id);
     const main = $('main'), timeline = $('timeline'), input = $('message'), mic = $('mic');
-    const figure = $('figure'), announcer = $('announcer');
+    const figure = $('figure'), announcer = $('announcer'), popup = $('popup'), popupText = $('popup-text');
     const prompts = document.querySelectorAll('.prompt');
     const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
     const decoder = new TextDecoder();
@@ -356,7 +373,8 @@
     const segments = new Map();  // transcript segment id -> <p>
     const toolCalls = new Map(); // tool call id -> timeline entry
     const running = new Map();   // tool call id -> tool name, in the order they started
-    let pendingImage = null;     // page_images' main image, until the agent's next reply describes it
+    let pendingImage = null;     // page_images' first image, until the agent's next reply describes it
+    let popupReply = null;       // the agent turn whose text streams into the open popup
 
     // What the figure shows: an error until the agent works again, else the
     // tool that started last, else the connection or lk.agent.state.
@@ -556,83 +574,55 @@
       return { li, time, resultHeading, result };
     }
 
-    function imageElement(image, src) {
-      // The policy and lazy loading are set before src, so the request goes out with them.
-      const img = Object.assign(document.createElement('img'), {
-        referrerPolicy: 'no-referrer', loading: 'lazy', decoding: 'async',
-        alt: image.alt || image.caption || 'No description on the page', src: src.href,
-      });
-      img.onerror = () => { img.hidden = true; };
-      return img;
-    }
-
     function pageLink(page) {
       const link = Object.assign(document.createElement('a'), { href: page.href, target: '_blank', rel: 'noopener noreferrer', textContent: site(page.href) });
       link.append(Object.assign(document.createElement('span'), { className: 'visually-hidden', textContent: ' (opens in a new tab)' }));
       return link;
     }
 
-    function imageItem(image, page) {
-      const li = Object.assign(document.createElement('li'), { className: 'image' });
-      const src = webUrl(image.src);
-      if (src) li.append(imageElement(image, src));
-      const text = Object.assign(document.createElement('div'), { className: 'image-text' });
-      for (const [label, value] of [['Alt text', image.alt], ['Caption', image.caption], ['Nearby text', image.context]]) {
-        if (!value) continue;
-        const p = document.createElement('p');
-        p.append(Object.assign(document.createElement('span'), { className: 'image-label', textContent: `${label}: ` }), value);
-        text.append(p);
-      }
-      if (!image.alt && !image.caption) {
-        text.prepend(Object.assign(document.createElement('p'), { className: 'image-label', textContent: 'No description on the page' }));
-      }
-      if (page) text.append(pageLink(page));
-      li.append(text);
-      return li;
-    }
-
     // Segments that already exist can't claim the image: they started before it was found.
-    function mainImage(ev) {
+    function firstImage(ev) {
       const image = Array.isArray(ev.images) ? ev.images[0] : null;
       const src = webUrl(image?.src);
       return src ? { image, src, page: webUrl(ev.arguments?.url), before: new Set(segments.values()) } : null;
     }
 
-    // Wraps the agent's reply in a card with the image above it.
-    function showImage(p, { image, src, page }) {
-      const figure = Object.assign(document.createElement('figure'), { className: 'image-card' });
-      const caption = document.createElement('figcaption');
-      p.replaceWith(figure);
-      caption.append(p);
-      if (page) {
-        const from = Object.assign(document.createElement('p'), { className: 'image-source', textContent: 'Image from ' });
-        from.append(pageLink(page));
-        caption.append(from);
-      }
-      figure.append(imageElement(image, src), caption);
+    // Shows the image with the agent's reply beneath it, replacing any image already open.
+    // Focus stays where it is, so a screen reader only hears where the image is from.
+    function openPopup(reply, { image, src, page }) {
+      // The policy is set before src, so the request goes out with it.
+      const img = Object.assign(document.createElement('img'), {
+        referrerPolicy: 'no-referrer', decoding: 'async',
+        alt: image.alt || image.caption || 'No description on the page', src: src.href,
+      });
+      img.onerror = () => { if (img.isConnected) closePopup(); };
+      popup.querySelector('img').replaceWith(img);
+      popupText.textContent = reply.textContent;
+      $('popup-source').replaceChildren(...(page ? ['Image from ', pageLink(page)] : []));
+      const from = site(page?.href);
+      popup.setAttribute('aria-label', `Image from ${from}`);
+      popupReply = reply;
+      follow(() => { popup.hidden = false; });
+      announce(`Showing an image from ${from}`);
     }
 
-    // The agent's first reply after page_images, other than a filler, describes the main image.
+    // Focus inside the popup moves to the message box, so it isn't lost with the popup.
+    function closePopup() {
+      if (popup.hidden) return;
+      const focused = popup.contains(document.activeElement);
+      popup.hidden = true;
+      popupReply = null;
+      if (focused) input.focus();
+    }
+
+    // The agent's first reply after page_images, other than a filler, describes the first image.
     function claimImage(p, text, done = false) {
       text = text.trimStart();
       if (!pendingImage || !text || pendingImage.before.has(p)) return;
       if (!done && FILLER_START.startsWith(text)) return; // too short to tell yet
       if (text.startsWith(FILLER_START)) return;
-      showImage(p, pendingImage);
+      openPopup(p, pendingImage);
       pendingImage = null;
-    }
-
-    function addImages(call, ev) {
-      const page = webUrl(ev.arguments?.url);
-      if (!ev.images.length) {
-        const none = Object.assign(document.createElement('p'), { className: 'images-none', textContent: `No images found on ${site(page?.href)}.` });
-        follow(() => call.li.append(none));
-        return;
-      }
-      const list = Object.assign(document.createElement('ol'), { className: 'images' });
-      list.setAttribute('aria-label', `Images on ${site(page?.href)}`);
-      list.append(...ev.images.map((image) => imageItem(image, page)));
-      follow(() => call.li.append(list));
     }
 
     function finishToolCall(call, ev) {
@@ -641,8 +631,11 @@
       call.time.textContent = ev.is_error ? `Failed ${seconds}`.trim() : seconds || 'Done';
       call.resultHeading.textContent = ev.truncated ? 'Result (first 2,000 characters)' : 'Result';
       call.result.textContent = pretty(ev.output);
-      if (Array.isArray(ev.images)) addImages(call, ev);
-      if (ev.name === 'page_images') pendingImage = mainImage(ev);
+      if (Array.isArray(ev.images) && !ev.images.length) {
+        const none = Object.assign(document.createElement('p'), { className: 'images-none', textContent: `No images found on ${site(ev.arguments?.url)}.` });
+        follow(() => call.li.append(none));
+      }
+      if (ev.name === 'page_images') pendingImage = firstImage(ev);
     }
 
     function onAgentEvent(ev) {
@@ -664,6 +657,7 @@
       if (ev.type === 'tool_started') {
         running.set(ev.id, ev.name);
         fault = null;
+        closePopup();
         announce(startPhrase(ev.name, ev.arguments));
       } else if (ev.type === 'tool_ended') {
         running.delete(ev.id);
@@ -692,7 +686,8 @@
         text += chunk;
         follow(() => {
           p.textContent = text;
-          if (!fromYou) claimImage(p, text);
+          if (p === popupReply) popupText.textContent = text;
+          else if (!fromYou) claimImage(p, text);
         });
       }
       if (!fromYou) follow(() => claimImage(p, text, true));
@@ -750,6 +745,7 @@
       agent = null;
       running.clear();
       pendingImage = null;
+      closePopup();
       fault = null;
       setBase('ended');
       note('Session ended.', { spoken: true });
@@ -798,10 +794,14 @@
         try {
           await next.connect(details.serverUrl, details.token);
         } catch (e) {
-          // "pc connection" means LiveKit answered but the audio path to it failed.
-          throw new Error(/pc connection/i.test(e.message)
-            ? `Reached LiveKit at ${details.serverUrl}, but the audio connection failed. A VPN, or a network change since the server started, can cause this. Restart it with livekit-server --dev --config web/livekit.yaml.`
-            : `Couldn't connect to LiveKit at ${details.serverUrl} (${e.message}). Check that livekit-server is running.`);
+          if (!/pc connection/i.test(e.message)) {
+            throw new Error(`Couldn't connect to LiveKit at ${details.serverUrl} (${e.message}). Check that livekit-server is running.`);
+          }
+          // "pc connection" means LiveKit answered but the audio path to it failed. Firefox
+          // offers only public addresses, which the localhost-only server can't reach.
+          throw new Error(/firefox/i.test(navigator.userAgent)
+            ? `Reached LiveKit at ${details.serverUrl}, but Firefox couldn't open the audio connection to it. Use Chrome, or open about:config in Firefox and set media.peerconnection.ice.loopback to true.`
+            : `Reached LiveKit at ${details.serverUrl}, but the audio connection failed. A VPN, or a network change since the server started, can cause this. Restart it with livekit-server --dev --config web/livekit.yaml.`);
         }
         room = next;
       } catch (e) {
@@ -862,6 +862,10 @@
       if (send(input.value)) input.value = '';
     };
     prompts.forEach((b) => { b.onclick = () => send(b.dataset.prompt); });
+    $('popup-close').onclick = () => { closePopup(); input.focus(); };
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !e.isComposing) closePopup();
+    });
     document.addEventListener('visibilitychange', animate);
     reducedMotion.addEventListener('change', animate);
     render();
