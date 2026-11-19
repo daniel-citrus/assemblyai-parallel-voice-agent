@@ -5,7 +5,11 @@
 - **Saw a console deprecation notice?** The locked LiveKit version supports this command. Wait for the greeting before speaking or typing.
 - **No transcript or no sound?** Add `--text` to the console command. To choose a microphone or speaker, run `uv run python src/agent.py console --list-devices`, then pass `--input-device` or `--output-device` with its name. Check your terminal's microphone permission.
 - **Gateway access error after the greeting?** Check your AssemblyAI key. If the error names a restricted gateway model, set `LLM_MODEL` in `.env.local` to an account-enabled option that supports streaming and tools. [AssemblyAI gateway options](https://www.assemblyai.com/docs/llm-gateway/available-models)
+- **Saw "Retrying LLM after APITimeoutError"?** The gateway didn't start answering within 5 seconds, so the agent sent the request again. It retries up to 3 times (`CONN_OPTIONS` in `src/agent.py`); the terminal logs each retry as `failed to generate LLM completion`. An occasional retry is a slow gateway moment. If it keeps happening, set `LLM_MODEL` in `.env.local` to another account-enabled model that supports streaming and tools.
+- **Test page says the audio connection failed?** The page reached LiveKit, but media couldn't flow. Plain `livekit-server --dev` offers your network addresses, so a VPN can block them, and changing networks after starting it leaves stale ones. Restart it with `livekit-server --dev --config web/livekit.yaml`, which uses only localhost. In Firefox, a restart won't help: Firefox doesn't offer loopback addresses, so it can't reach that localhost-only server. Use Chrome, or open `about:config` in Firefox, set `media.peerconnection.ice.loopback` to `true`, and set `media.peerconnection.ice.no_host` to `false` if it's on.
 - **Web tool failed?** Check that the machine can reach `https://mcp.parallel.ai/mcp`. Anonymous limits can apply during discovery or mid-conversation, especially during repeated setup tests. If you hit the limit, wait and restart the agent, or set `PARALLEL_API_KEY` and restart for authenticated usage.
+- **Picture description failed or came back thin?** `page_images` downloads the page itself, without Parallel. It gives up after 10 seconds, 3 MB or 3 redirects, and it refuses local and private network addresses. Some sites block direct requests; the agent then reads the captions that Fetch returns. Many images have no alt text or caption, so the agent can say only what the nearby text says, and it tells the caller so. To see what a page offers, ask in text mode: “Describe the pictures on https://en.wikipedia.org/wiki/Golden_Gate_Bridge.”
+- **Described a different picture than the one asked about?** The agent passes `page_images` the caller's subject in a few words. An image whose alt text or caption names it comes first, then one whose nearby text or file name does. With no match, the page's main image leads. This is word matching, not vision, so a page whose alt text never names the subject gets its main image described.
 
 ## Standalone API example
 
@@ -18,7 +22,9 @@ uv run python scripts/try_parallel.py --decision "Python 3.13, python.org" "Does
 
 ## Browser or room
 
-Install the LiveKit server and CLI first (on macOS, `brew install livekit livekit-cli`). Start the local server:
+For the quickest browser setup, use the [test page](../README.md#watch-it-in-the-browser). Its token server sends the agent into each new room, so you don't need `lk dispatch create`. Set `WEB_PORT` or pass `--port` to change port 8090. If `LIVEKIT_URL`, `LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET` point at a LiveKit Cloud project, the page and a local `dev` worker use that project instead.
+
+To use the Agents Playground instead, install the LiveKit server and CLI first (on macOS, `brew install livekit livekit-cli`). Start the local server:
 
 ```bash
 livekit-server --dev
@@ -57,10 +63,10 @@ To run a worker on your own machine against a LiveKit Cloud project, use `uv run
 
 Set `AGENT_METRICS=1` in `.env.local` and restart to see the original per-turn timing report alongside the transcript. If a reply feels slow, compare the end-of-utterance delay, time to the first LLM token, and time to the first byte of synthesized speech. The report prints the timings available for that turn.
 
-Set `ASSEMBLYAI_TTS_VOICE` to change the speaking voice and `ASSEMBLYAI_STT_MODEL` to change the transcription model. It defaults to `universal-3-6-pro`. The voice defaults to `aai-kyla`; see the [voice list](https://github.com/tom-aai/assemblyai-livekit-tts#voices). For the standalone Search example, `PARALLEL_SEARCH_MODE`, `PARALLEL_MAX_RESULTS`, and `PARALLEL_MAX_CHARS` control the mode, result count, and excerpt budget. These three settings apply to the direct API example only.
+Set `ASSEMBLYAI_TTS_VOICE` to change the speaking voice and `ASSEMBLYAI_STT_MODEL` to change the transcription model. It defaults to `universal-3-6-pro`. The voice defaults to `aai-kyla`; see the [voice list](https://www.assemblyai.com/docs/tts/voices). For the standalone Search example, `PARALLEL_SEARCH_MODE`, `PARALLEL_MAX_RESULTS`, and `PARALLEL_MAX_CHARS` control the mode, result count, and excerpt budget. These three settings apply to the direct API example only.
 
 ## Tests
 
-Run `uv run pytest`. Tests with configured keys make live API calls.
+Run `uv run pytest`. Tests with configured keys make live API calls. The `page_images` tests serve HTML fixtures through a mock transport, so they need no network. With an AssemblyAI key, the live test adds a turn that describes the main photo on the Wikipedia article about the Golden Gate Bridge and checks that the agent passed `page_images` a subject.
 
-Speech playback and the latency reporter come from the [AssemblyAI streaming TTS plugin](https://github.com/tom-aai/assemblyai-livekit-tts).
+Speech playback uses the AssemblyAI TTS in `livekit-plugins-assemblyai`, which keeps one session open for the whole call. The latency reporter is adapted from the [AssemblyAI streaming TTS plugin](https://github.com/tom-aai/assemblyai-livekit-tts).

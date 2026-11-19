@@ -1,5 +1,6 @@
-"""Live text turns through AssemblyAI and the hosted Parallel MCP server."""
+"""Live text turns through AssemblyAI, the hosted Parallel MCP server and the web."""
 
+import json
 import os
 
 import pytest
@@ -30,7 +31,7 @@ async def test_voice_tools_in_one_conversation():
             "web_decisions",
         ),
     ]
-    async with AgentSession() as session:
+    async with AgentSession(conn_options=agent.CONN_OPTIONS) as session:
         await session.start(agent.SearchAssistant())
         greeting = await session.run(user_input="Hi there, how are you?")
         assert all(event.type != "function_call" for event in greeting.events)
@@ -51,3 +52,18 @@ async def test_voice_tools_in_one_conversation():
                 .event()
                 .item.text_content
             )
+
+        result = await session.run(
+            user_input="Describe the main photo on the Wikipedia article about "
+            "the Golden Gate Bridge."
+        )
+        call = result.expect.contains_function_call(name="page_images").event().item
+        subject = json.loads(call.arguments).get("subject") or ""
+        assert subject.strip(), "page_images was called without a subject"
+        reply = " ".join(
+            event.item.text_content or ""
+            for event in result.events
+            if event.type == "message" and event.item.role == "assistant"
+        ).lower()
+        assert "bridge" in reply
+        assert "i can see" not in reply

@@ -5,11 +5,15 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from livekit.agents import RunContext, function_tool
 
-from voice_mcp import with_spoken_acknowledgment
+from voice_mcp import (
+    ACKNOWLEDGMENTS,
+    DEFAULT_ACKNOWLEDGMENT,
+    with_spoken_acknowledgment,
+)
 
 
-@pytest.mark.parametrize("slow", [False, True])
-async def test_acknowledgment_only_during_slow_lookup(slow):
+async def run_lookup(name, slow):
+    """Run a wrapped tool and return the session that would speak for it."""
     spoken = asyncio.Event()
     session = Mock(wait_for_idle=AsyncMock())
     session.say.side_effect = lambda *args, **kwargs: spoken.set()
@@ -24,7 +28,7 @@ async def test_acknowledgment_only_during_slow_lookup(slow):
         ),
         function_call=Mock(),
     )
-    schema = {"name": "web_search", "parameters": {"type": "object"}}
+    schema = {"name": name, "parameters": {"type": "object"}}
 
     @function_tool(raw_schema=schema)
     async def lookup(raw_arguments):
@@ -35,9 +39,35 @@ async def test_acknowledgment_only_during_slow_lookup(slow):
     tool = with_spoken_acknowledgment(lookup)
     assert tool.info.raw_schema == lookup.info.raw_schema
     assert await tool(ctx, {"query": "Python"}) == {"query": "Python"}
-    if slow:
-        session.say.assert_called_once_with(
-            "One sec, let me check.", add_to_chat_ctx=False, allow_interruptions=True
-        )
-    else:
-        session.say.assert_not_called()
+    return session
+
+
+@pytest.mark.parametrize(
+    "name, phrase",
+    [
+        ("web_search", "One sec, I'm searching the web."),
+        ("web_fetch", "One sec, I'm reading the page."),
+        ("web_decisions", "One sec, I'm weighing the evidence."),
+        ("page_images", "One sec, I'm reading about the page's pictures."),
+        ("some_new_tool", "One sec, let me check."),
+    ],
+)
+async def test_slow_lookup_says_what_it_is_doing(name, phrase):
+    session = await run_lookup(name, slow=True)
+
+    session.say.assert_called_once_with(
+        phrase, add_to_chat_ctx=False, allow_interruptions=True
+    )
+
+
+async def test_fast_lookup_says_nothing():
+    session = await run_lookup("web_search", slow=False)
+
+    session.say.assert_not_called()
+
+
+def test_every_acknowledgment_starts_the_way_the_page_expects():
+    # web/index.html skips these when it pairs an image with the agent's description.
+    phrases = [*ACKNOWLEDGMENTS.values(), DEFAULT_ACKNOWLEDGMENT]
+
+    assert all(phrase.startswith("One sec") for phrase in phrases)
