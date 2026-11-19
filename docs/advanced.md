@@ -63,10 +63,10 @@ To run a worker on your own machine against a LiveKit Cloud project, use `uv run
 
 Set `AGENT_METRICS=1` in `.env.local` and restart to see the original per-turn timing report alongside the transcript. If a reply feels slow, compare the end-of-utterance delay, time to the first LLM token, and time to the first byte of synthesized speech. The report prints the timings available for that turn.
 
-Set `ASSEMBLYAI_TTS_VOICE` to change the speaking voice and `ASSEMBLYAI_STT_MODEL` to change the transcription model. It defaults to `universal-3-6-pro`. The voice defaults to `aai-kyla`; see the [voice list](https://github.com/tom-aai/assemblyai-livekit-tts#voices). For the standalone Search example, `PARALLEL_SEARCH_MODE`, `PARALLEL_MAX_RESULTS`, and `PARALLEL_MAX_CHARS` control the mode, result count, and excerpt budget. These three settings apply to the direct API example only.
+Set `ASSEMBLYAI_TTS_VOICE` to change the speaking voice and `ASSEMBLYAI_STT_MODEL` to change the transcription model. It defaults to `universal-3-6-pro`. The voice defaults to `aai-kyla`; see the [voice list](https://www.assemblyai.com/docs/tts/voices). For the standalone Search example, `PARALLEL_SEARCH_MODE`, `PARALLEL_MAX_RESULTS`, and `PARALLEL_MAX_CHARS` control the mode, result count, and excerpt budget. These three settings apply to the direct API example only.
 
 ## Tests
 
 Run `uv run pytest`. Tests with configured keys make live API calls. The `page_images` tests serve HTML fixtures through a mock transport, so they need no network. With an AssemblyAI key, the live test adds a turn that describes the main photo on the Wikipedia article about the Golden Gate Bridge and checks that the agent passed `page_images` a subject.
 
-Speech playback and the latency reporter come from the [AssemblyAI streaming TTS plugin](https://github.com/tom-aai/assemblyai-livekit-tts).
+Speech playback uses the AssemblyAI TTS in `livekit-plugins-assemblyai`, which keeps one session open for the whole call. The latency reporter is adapted from the [AssemblyAI streaming TTS plugin](https://github.com/tom-aai/assemblyai-livekit-tts).

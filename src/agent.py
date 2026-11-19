@@ -8,7 +8,6 @@ import textwrap
 from datetime import date
 from pathlib import Path
 
-import assemblyai_tts
 from dotenv import dotenv_values, load_dotenv
 from livekit.agents import (
     Agent,
@@ -167,10 +166,15 @@ server = AgentServer()
 
 @server.rtc_session(agent_name="parallel-search-agent")
 async def entrypoint(ctx: JobContext) -> None:
+    # One TTS session serves the whole call. The account limits new sessions per
+    # minute, and opening it now keeps the handshake out of the greeting.
+    tts = assemblyai.TTS(voice=TTS_VOICE, language="english")
+    tts.prewarm()
+
     session = AgentSession(
         # AssemblyAI streaming STT also decides when the caller finished speaking.
         stt=assemblyai.STT(model=STT_MODEL, keyterms_prompt=KEYTERMS),
-        tts=assemblyai_tts.TTS(voice_id=TTS_VOICE, language="english"),
+        tts=tts,
         # Silero VAD runs locally and lets the caller interrupt the agent.
         vad=silero.VAD.load(),
         turn_handling=TurnHandlingOptions(
