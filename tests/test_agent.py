@@ -10,3 +10,11 @@ def test_agent_builds(monkeypatch):
     assert "web_search" in a.instructions
     assert "page_images" in a.instructions
     assert page_images in a.tools
+
+
+def test_session_retries_a_stalled_llm_request_after_five_seconds():
+    import agent
+
+    options = agent.CONN_OPTIONS.llm_conn_options
+    assert options.timeout == 5
+    assert options.max_retry == 3
