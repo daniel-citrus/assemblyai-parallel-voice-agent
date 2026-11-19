@@ -162,6 +162,75 @@ async def test_text_is_clipped_and_the_list_stops_at_eight():
     assert result["images"][0]["alt"].endswith("…")
 
 
+def file_names(result):
+    return [image["src"].rsplit("/", 1)[1] for image in result["images"]]
+
+
+async def test_a_late_image_whose_caption_names_the_subject_comes_first():
+    figures = "".join(
+        f'<figure><img src="/street-{n}.jpg"><figcaption>Street scene {n}'
+        "</figcaption></figure>"
+        for n in range(MAX_IMAGES + 1)
+    )
+    page = f"""<body><main>
+    <img src="/portrait.jpg" alt="Official portrait" width="800">{figures}
+    <figure><img src="/senate.jpg">
+    <figcaption>Joe Biden as a young senator, 1973</figcaption></figure>
+    </main></body>"""
+    site = Site({"https://example.org/": html_page(page)})
+
+    plain = await find_images("https://example.org/", site.transport)
+    ranked = await find_images(
+        "https://example.org/", site.transport, subject="young Joe Biden"
+    )
+
+    streets = [f"street-{n}.jpg" for n in range(MAX_IMAGES)]
+    assert file_names(plain) == ["portrait.jpg", *streets[:-1]]
+    assert file_names(ranked) == ["senate.jpg", "portrait.jpg", *streets[:-2]]
+    assert [image["n"] for image in ranked["images"]] == list(range(1, 9))
+
+
+async def test_alt_or_caption_words_outrank_any_number_of_file_name_words():
+    page = """<body><img src="/fishing-boats-at-dawn.jpg">
+    <img src="/market.jpg" alt="Fish market"><img src="/harbor.jpg" alt="Boats in
+    the harbor"></body>"""
+    site = Site({"https://example.org/": html_page(page)})
+
+    result = await find_images(
+        "https://example.org/", site.transport, subject="fishing boats at dawn"
+    )
+
+    assert file_names(result) == [
+        "harbor.jpg",
+        "fishing-boats-at-dawn.jpg",
+        "market.jpg",
+    ]
+
+
+@pytest.mark.parametrize("subject", [None, "", "Mount Fuji", "the main photo"])
+async def test_without_a_matching_subject_the_order_is_unchanged(subject):
+    site = Site({"https://example.org/bridge": html_page(ARTICLE)})
+
+    plain = await find_images("https://example.org/bridge", site.transport)
+    ranked = await find_images(
+        "https://example.org/bridge", site.transport, subject=subject
+    )
+
+    assert ranked == plain
+    assert file_names(ranked)[0] == "600px-bridge-from-marin.jpg"
+
+
+async def test_a_subject_in_the_caption_ties_the_main_image_and_it_stays_first():
+    site = Site({"https://example.org/bridge": html_page(ARTICLE)})
+
+    result = await find_images(
+        "https://example.org/bridge", site.transport, subject="fog"
+    )
+
+    # The main image's alt text and the fog photo's caption both say fog.
+    assert file_names(result)[:2] == ["600px-bridge-from-marin.jpg", "fog.jpg"]
+
+
 async def test_page_without_described_images_says_so():
     page = '<body><img src="/icons/search.svg" alt=""><img src="/photo.jpg"></body>'
     site = Site({"https://example.org/": html_page(page)})
@@ -277,13 +346,22 @@ async def test_direct_image_url_returns_that_image_with_its_file_name():
     assert result["skipped"] == 0
 
 
-async def test_tool_takes_one_url_and_returns_json(monkeypatch):
+async def test_tool_takes_a_url_and_an_optional_subject_and_returns_json(
+    monkeypatch,
+):
     schema = llm.utils.build_legacy_openai_schema(page_images.page_images)
+    parameters = schema["function"]["parameters"]
     assert schema["function"]["name"] == "page_images"
-    assert list(schema["function"]["parameters"]["properties"]) == ["url"]
+    assert list(parameters["properties"]) == ["url", "subject"]
+    assert parameters["required"] == ["url"]
+    strict = llm.utils.build_strict_openai_schema(page_images.page_images)
+    assert strict["function"]["parameters"]["properties"]["subject"]["type"] == [
+        "string",
+        "null",
+    ]
 
-    async def fake_find_images(url):
-        return {"page": url, "images": []}
+    async def fake_find_images(url, subject):
+        return {"page": url, "subject": subject, "images": []}
 
     monkeypatch.setattr(page_images, "find_images", fake_find_images)
     ctx = RunContext(
@@ -292,4 +370,10 @@ async def test_tool_takes_one_url_and_returns_json(monkeypatch):
         function_call=Mock(),
     )
     output = await page_images.page_images(ctx, "https://example.org/")
-    assert json.loads(output) == {"page": "https://example.org/", "images": []}
+    assert json.loads(output) == {
+        "page": "https://example.org/",
+        "subject": None,
+        "images": [],
+    }
+    output = await page_images.page_images(ctx, "https://example.org/", "a bridge")
+    assert json.loads(output)["subject"] == "a bridge"

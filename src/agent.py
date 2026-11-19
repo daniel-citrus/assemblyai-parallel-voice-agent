@@ -14,6 +14,7 @@ from livekit.agents import (
     Agent,
     AgentServer,
     AgentSession,
+    APIConnectOptions,
     ConversationItemAddedEvent,
     JobContext,
     TurnHandlingOptions,
@@ -21,6 +22,7 @@ from livekit.agents import (
     llm,
     mcp,
 )
+from livekit.agents.voice.agent_session import SessionConnectOptions
 from livekit.plugins import assemblyai, openai, silero
 
 from page_images import page_images
@@ -37,6 +39,11 @@ LLM_MODEL = os.environ.get("LLM_MODEL", defaults["LLM_MODEL"])
 STT_MODEL = os.environ.get("ASSEMBLYAI_STT_MODEL", "universal-3-6-pro")
 TTS_VOICE = os.environ.get("ASSEMBLYAI_TTS_VOICE", "aai-kyla")
 LLM_GATEWAY_URL = "https://llm-gateway.assemblyai.com/v1"
+# The gateway normally starts answering in under a second, so a stalled request
+# is retried after 5 seconds instead of LiveKit's default 10.
+CONN_OPTIONS = SessionConnectOptions(
+    llm_conn_options=APIConnectOptions(max_retry=3, timeout=5)
+)
 
 # Names callers are likely to say; boosts recognition accuracy.
 KEYTERMS = ["Parallel", "LiveKit", "AssemblyAI"]
@@ -96,8 +103,10 @@ INSTRUCTIONS = textwrap.dedent(
     How you describe pictures:
     - When asked what something looks like or to describe a picture, find a page
       that shows it: a page the caller named, a source you already cited, or a
-      web_search result. Then call page_images with that page's URL. Its first
-      image is the page's main image.
+      web_search result. Then call page_images with that page's URL and the
+      subject in a few words, such as "young Joe Biden". Its first image is the
+      one whose words best match the subject, or else the page's main image.
+      Describe the first image first.
     - Give the gist in one sentence. Then describe the subject, the action, the
       setting, the colors and any text in the image, but only as far as its alt
       text, caption and context support them. The context describes the page,
@@ -170,6 +179,7 @@ async def entrypoint(ctx: JobContext) -> None:
             preemptive_generation={"enabled": True},
         ),
         expressive=False,
+        conn_options=CONN_OPTIONS,
     )
 
     if os.getenv("AGENT_METRICS") == "1":

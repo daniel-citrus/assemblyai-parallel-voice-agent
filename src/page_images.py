@@ -39,6 +39,10 @@ DECORATIVE_WORDS = re.compile(
     r"\b(?:icons?|logos?|spacer|tracking|tracker|beacon|sprites?|favicon)\b"
 )
 DECORATIVE_FILES = {"pixel", "blank", "clear", "transparent", "1x1"}
+# Subject words that don't tell one picture from another.
+FILLER_WORDS = set(
+    "a an the of in on at and with to for from main photo picture image".split()
+)
 HTML_TYPES = {"text/html", "application/xhtml+xml"}
 # Text inside these never describes an image; sup holds footnote markers.
 SILENT_TAGS = {"style", "noscript", "template", "svg", "nav", "sup"}
@@ -52,20 +56,25 @@ META_KEYS = {
 
 
 @function_tool
-async def page_images(ctx: RunContext, url: str) -> str:
-    """List the meaningful images on a public web page, main image first, with
-    the page's own words about each: alt text, caption and surrounding text.
+async def page_images(ctx: RunContext, url: str, subject: str | None = None) -> str:
+    """List the meaningful images on a public web page, with the page's own
+    words about each: alt text, caption and surrounding text. The image whose
+    words best match the subject comes first, otherwise the page's main image.
     These words are all you know about an image; you cannot see it.
 
     Args:
         url: The full http or https address of the page, or of an image file.
+        subject: What the caller wants pictured, in a few words, such as
+            "young Joe Biden". Leave it empty to get the page's main image first.
     """
     async with acknowledge_slow_lookup(ctx, "page_images"):
-        return json.dumps(await find_images(url))
+        return json.dumps(await find_images(url, subject=subject))
 
 
 async def find_images(
-    url: str, transport: httpx.AsyncBaseTransport | None = None
+    url: str,
+    transport: httpx.AsyncBaseTransport | None = None,
+    subject: str | None = None,
 ) -> dict[str, Any]:
     try:
         target = httpx.URL(url.strip())
@@ -83,7 +92,7 @@ async def find_images(
                     if response.next_request is not None:
                         target = response.next_request.url
                         continue
-                    return await _read_images(response)
+                    return await _read_images(response, subject)
         except httpx.TimeoutException as e:
             raise ToolError("The page took too long to respond.") from e
         except httpx.HTTPError as e:
@@ -119,7 +128,7 @@ async def _check_public(url: httpx.URL) -> None:
             )
 
 
-async def _read_images(response: httpx.Response) -> dict[str, Any]:
+async def _read_images(response: httpx.Response, subject: str | None) -> dict[str, Any]:
     if response.status_code >= 400:
         raise ToolError(
             f"The site wouldn't give me that page. It answered with error "
@@ -139,6 +148,7 @@ async def _read_images(response: httpx.Response) -> dict[str, Any]:
     return extract_images(
         body.decode(response.encoding or "utf-8", errors="replace"),
         str(response.url),
+        subject,
     )
 
 
@@ -160,7 +170,9 @@ def _direct_image(url: str) -> dict[str, Any]:
     }
 
 
-def extract_images(html: str, page_url: str) -> dict[str, Any]:
+def extract_images(
+    html: str, page_url: str, subject: str | None = None
+) -> dict[str, Any]:
     """Return the `page_images` result for an HTML document."""
     parser = _PageParser(page_url)
     parser.feed(html)
@@ -220,6 +232,10 @@ def extract_images(html: str, page_url: str) -> dict[str, Any]:
                 or parser.meta.get("twitter:image:alt")
             )
         kept.insert(0, main)
+    if subject:
+        wanted = _match_words(subject) - FILLER_WORDS
+        # The sort is stable, so ties keep page order with the main image first.
+        kept.sort(key=lambda image: _relevance(image, wanted), reverse=True)
 
     images = [
         {
@@ -436,6 +452,24 @@ def _context(image: dict[str, Any], text: str) -> str | None:
     if heading:
         context = f"{heading}: {context}" if context else heading
     return context or None
+
+
+def _relevance(image: dict[str, Any], wanted: set[str]) -> tuple[int, int]:
+    """Count subject words in the alt text or caption, then the rest in the
+    context or file name, which say less about the image itself."""
+    described = _match_words(f"{image['alt'] or ''} {image['caption'] or ''}")
+    nearby = _match_words(
+        f"{image['context'] or ''} {_words(_file_stem(image['src']))}"
+    )
+    return len(wanted & described), len(wanted & (nearby - described))
+
+
+def _match_words(text: str) -> set[str]:
+    """Lowercase words without a plural "s", so "towers" matches "tower"."""
+    words = re.findall(r"[^\W_]+", text.lower())
+    return {
+        word[:-1] if len(word) > 3 and word.endswith("s") else word for word in words
+    }
 
 
 def _json_ld_captions(scripts: list[str], base: str) -> dict[str, str]:
